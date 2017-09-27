@@ -15,50 +15,76 @@ print("\n--> Loading parameters...")
 global par
 
 par = {
-    # Setup parameters
-    'stimulus_type'         : 'att',    # multitask, att, mnist
-    'save_dir'              : './savedir/',
-    'debug_model'           : False,
-    'load_previous_model'   : False,
-    'processor_affinity'    : [0, 1],   # Default is [], for no preference
-    'notify_on_completion'  : False,
-    'test_with_optimizer'   : False,
-
-    # hidden layer shape
-    'n_hidden'          : 100,
-    'den_per_unit'      : 3,
-
-    # Tuning function data
-    'tuning_height'     : 1,        # magnitutde scaling factor for von Mises
-    'kappa'             : 1,        # concentration scaling factor for von Mises
-    'catch_rate'        : 0.2,      # catch rate when using variable delay
-    'match_rate'        : 0.5,      # number of matching tests in certain tasks
-
-    # Cost parameters/function
-    'spike_cost'        : 1e-2,
-    'dend_cost'         : 1e-3,
-    'wiring_cost'       : 5e-7,
-    'motif_cost'        : 0e-2,
-    'omega_cost'        : 0.0,
+    # General parameters
+    'save_dir'          : './savedir/',
     'loss_function'     : 'cross_entropy',    # cross_entropy or MSE
+    'learning_rate'     : 0.001,
+    'connection_prob'   : 1.,
 
+    # Task specs
+    'n_tasks'           : 10,
+
+    # Network shape
+    'n_stim'            : 784,
+    'n_td'              : 10,
+    'n_hidden'          : 12,
+    'n_dend'            : 3,
+    'n_out'             : 10,
 
     # Training specs
-    'batch_train_size'      : 100,
-    'num_train_batches'     : 300,
-    'num_test_batches'      : 20,
-    'num_iterations'        : 2,
-    'switch_rule_iteration' : 1,
+    'batch_size'        : 8,
+    'num_train_batches' : 300,
+    'num_test_batches'  : 20,
+    'num_iterations'    : 2,
+    'switch_iteration'  : 1,
 }
 
 ############################
 ### Dependent parameters ###
 ############################
 
-def generate_weight(dims, connection_prob):
+def generate_init_weight(dims):
     n = np.float32(np.random.gamma(shape=0.25, scale=1.0, size=dims))
-    n *= (np.random.rand(*dims) < connection_prob)
-    return n
+    n *= (np.random.rand(*dims) < par['connection_prob'])
+    return np.float32(n)
+
+
+def gen_td_cases():
+    if par['n_tasks'] > par['n_td']:
+        raise Exception('Use more TD neurons than tasks.')
+    if par['n_td']%par['n_tasks'] != 0:
+        raise Exception('Use an integer multiple of n_tasks for n_td.')
+
+    m = par['n_td']//par['n_tasks']
+    template = np.zeros([par['n_tasks'], par['n_td']])
+    for n in range(par['n_tasks']):
+        if n == par['n_tasks']-1:
+            template[n, n*m:]=1
+        else:
+            template[n, n*m:n*m+m]=1
+
+    return template
+
+
+def update_dependencies():
+    """
+    Updates all parameter dependencies
+    """
+
+    # Weight matrix sizes
+    par['stim_to_hidden_dims']  = [par['n_hidden'], par['n_dend'], par['n_stim']]
+    par['td_to_hidden_dims']    = [par['n_hidden'], par['n_dend'], par['n_td']]
+    par['hidden_to_out_dims']   = [par['n_out'], par['n_hidden']]
+
+    # Initial weight matrix states
+    par['w_stim0']  = generate_init_weight(par['stim_to_hidden_dims'])
+    par['w_td0']    = generate_init_weight(par['td_to_hidden_dims'])
+    par['w_out0']   = generate_init_weight(par['hidden_to_out_dims'])
+
+    par['b_hid0']   = np.zeros([par['n_hidden'],1], dtype=np.float32)
+    par['b_out0']   = np.zeros([par['n_out'],1], dtype=np.float32)
+
+    par['td_cases'] = gen_td_cases()
 
 
 def update_parameters(updates):
@@ -68,58 +94,8 @@ def update_parameters(updates):
     """
     for (key, val) in updates.items():
         par[key] = val
-
     update_dependencies()
 
-
-def spectral_radius(A):
-    """
-    Compute the spectral radius of each dendritic dimension of a weight array,
-    and normalize using square room of the sum of squares of those radii.
-    """
-    if A.ndim == 2:
-        return np.max(abs(np.linalg.eigvals(A)))
-    elif A.ndim == 3:
-        # Assumes the second axis is the target (for dendritic setup)
-        r = 0
-        for n in range(np.shape(A)[1]):
-            r = r + np.max(abs(np.linalg.eigvals(np.squeeze(A[:,n,:]))))
-
-        return r / np.shape(A)[1]
-
-
-def update_dependencies():
-    """
-    Updates all parameter dependencies
-    """
-
-    par['input_to_hidden_dend_dims'] = [par['n_hidden'], par['den_per_unit'], par['num_stim_tuned']]
-    par['input_to_hidden_soma_dims'] = [par['n_hidden'], par['num_stim_tuned']]
-
-    par['td_to_hidden_dend_dims']     = [par['n_hidden'], par['den_per_unit'], par['n_input'] - par['num_stim_tuned']]
-    par['td_to_hidden_soma_dims']     = [par['n_hidden'], par['n_input'] - par['num_stim_tuned']]
-
-    par['hidden_to_hidden_dend_dims'] = [par['n_hidden'], par['den_per_unit'], par['n_hidden']]
-    par['hidden_to_hidden_soma_dims'] = [par['n_hidden'], par['n_hidden']]
-
-    # Generate random masks
-    generate_masks()
-
-    if par['mask_connectivity'] < 1:
-        reduce_connectivity()
-
-    # Generate input weights
-    par['w_stim_dend0'] = generate_weight(par['input_to_hidden_dend_dims'], par['connection_prob_in'])
-    par['w_stim_soma0'] = generate_weight(par['input_to_hidden_soma_dims'], par['connection_prob_in'])
-
-    par['w_td_dend0'] = generate_weight(par['td_to_hidden_dend_dims'], par['connection_prob_in'])
-    par['w_td_soma0'] = generate_weight(par['td_to_hidden_soma_dims'], par['connection_prob_in'])
-
-    par['w_stim_dend0'] *= par['w_stim_dend_mask']
-    par['w_stim_soma0'] *= par['w_stim_soma_mask']
-
-    par['w_td_dend0'] *= par['w_td_dend_mask']
-    par['w_td_soma0'] *= par['w_td_soma_mask']
 
 update_dependencies()
 print("--> Parameters successfully loaded.\n")
