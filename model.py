@@ -68,7 +68,6 @@ class Model:
         self.d_state = self.d_stim * self.d_td
 
         self.h_state = tf.nn.relu(tf.reduce_sum(self.d_state, 1) + b_hid)
-
         self.y = tf.nn.relu(tf.matmul(tf.nn.relu(W_out),self.h_state)+b_out)
 
     def optimize(self):
@@ -79,8 +78,30 @@ class Model:
             td_cases = []
             for td in par['td_cases']:
                 td_cases.append(tf.nn.relu(tf.tensordot(W_td, tf.constant(td, dtype=tf.float32), ([2],[0]))))
+            self.td_set = tf.stack(td_cases)
 
-            self.td_cases = tf.stack(td_cases)
+            if par['td_loss_type'] == 'naive_dot':
+                td_cases = tf.unstack(self.td_set, axis=1)
+                self.task_loss = 0.
+                for neuron in td_cases:
+                    t = tf.reduce_prod(neuron, axis=0)  # Across tasks
+                    d = tf.reduce_prod(neuron, axis=1)  # Across dendrites
+                    self.task_loss += tf.square(tf.reduce_sum(t)+tf.reduce_sum(d))
+
+            elif par['td_loss_type'] == 'z_dot':
+                td_set = tf.nn.softmax(self.td_set, dim=2)
+                y_prime = tf.tensordot(td_set, td_set, [[2],[2]])
+                z = tf.constant(par['TD_Z'], dtype=tf.float32)
+                self.task_loss = tf.reduce_sum(tf.square(y_prime-z))
+
+            elif par['td_loss_type'] == 'pairwise_random':
+                td_set = self.td_set
+                z = tf.constant(par['TD_Z'], dtype=tf.float32)
+                self.task_loss = tf.reduce_sum(tf.square(td_set-z))
+
+            opt = tf.train.GradientDescentOptimizer(learning_rate=self.learning_rate)
+            self.grads_and_vars = opt.compute_gradients(self.task_loss)
+            self.train_op = opt.apply_gradients(self.grads_and_vars)
 
         else:
             print('Training loss not yet implemented')
@@ -106,15 +127,20 @@ def main():
         t_start = time.time()
         sess.run(init)
 
+        # TD Training
         stim_in  = np.ones([par['n_stim'], par['batch_size']])
         td_in    = np.ones([par['n_td'], par['batch_size']])
         y_hat    = np.ones([par['n_out'], par['batch_size']])
         rate     = par['learning_rate']
         train    = True
 
-        proj_td = sess.run(model.td_cases, feed_dict={x:stim_in, td:td_in, y:y_hat, lr:rate, st:train})
+        for i in range(10000):
+            _, td_set, loss, gvs = sess.run([model.train_op, model.td_set, model.task_loss, model.grads_and_vars], \
+                                            feed_dict={x:stim_in, td:td_in, y:y_hat, lr:rate, st:train})
 
-        print(proj_td)
+        # Task training
+        rate     = par['learning_rate']
+        train   = False
 
     print('\nModel execution complete.')
 

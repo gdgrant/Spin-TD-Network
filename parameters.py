@@ -4,7 +4,7 @@
 
 import numpy as np
 import tensorflow as tf
-import itertools
+from itertools import product
 
 print("\n--> Loading parameters...")
 
@@ -18,6 +18,7 @@ par = {
     # General parameters
     'save_dir'          : './savedir/',
     'loss_function'     : 'cross_entropy',    # cross_entropy or MSE
+    'td_loss_type'      : 'pairwise_random',
     'learning_rate'     : 0.001,
     'connection_prob'   : 1.,
 
@@ -85,6 +86,19 @@ def update_dependencies():
     par['b_out0']   = np.zeros([par['n_out'],1], dtype=np.float32)
 
     par['td_cases'] = gen_td_cases()
+
+    # TD loss helper functions
+    if par['td_loss_type'] == 'z_dot':
+        par['TD_Z'] = np.ones([par['n_tasks'], par['n_hidden'], par['n_tasks'], par['n_hidden']])
+        par['TD_Z'] /= par['n_dend']
+        for i, j in product(range(par['n_tasks']), range(par['n_hidden'])):
+            par['TD_Z'][i,j,i,j] = 0 #1/par['n_dend']
+
+    elif par['td_loss_type'] == 'pairwise_random':
+        par['TD_Z'] = np.zeros([par['n_tasks'], par['n_hidden'], par['n_dend']])
+        for i, j in product(range(par['n_tasks']), range(par['n_hidden'])):
+            q = np.random.randint(par['n_dend'])
+            par['TD_Z'][i,j,q] = 1
 
 
 def update_parameters(updates):
