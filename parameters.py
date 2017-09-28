@@ -28,7 +28,7 @@ par = {
     # Network shape
     'n_td'              : 20,
     'n_dendrites'       : 3,
-    'layer_dims'        : [28**2, 40, 40, 10],
+    'layer_dims'        : [28**2, 20, 20, 10],
 
     # Training specs
     'batch_size'        : 8,
@@ -53,7 +53,7 @@ def gen_td_cases():
     # will create par['n_tasks'] number of tunings, each with exactly n non-zero elements equal to one
     # the distance between all tuned will be d
     n = 3
-    d = 4
+    min_dist = 2
     tuning = np.zeros([par['n_tasks'], par['n_td']])
     for i in range(par['n_tasks']):
         q = np.random.permutation(par['n_td'])[:n]
@@ -67,7 +67,7 @@ def gen_td_cases():
                 found_tuning = True
                 for j in range(i-1):
                     pair_dist = np.sum(np.abs(potential_tuning - tuning[j,:]))
-                    if not (pair_dist >= d-2 and pair_dist <= d):
+                    if pair_dist < min_dist:
                         found_tuning = False
                         q = np.random.permutation(par['n_td'])[:n]
                         #print(i, pair_dist, q)
@@ -79,12 +79,15 @@ def gen_td_cases():
 def gen_td_targets():
 
     td_targets = []
-    for n, td in product(range(par['n_layers']-1), par['td_cases']):
-        target = np.zeros((par['n_tasks'],par['n_dendrites'], par['layer_dims'][n+1]))
-        for i, j in product(range(par['n_tasks']), range(par['layer_dims'][n+1])):
-            q = np.random.randint(par['n_dendrites'])
-            target[i,q,j] = 1
-        td_targets.append(target)
+    for task in range(par['n_tasks']):
+        target_layer = []
+        for n in range(par['n_layers']-1):
+            target = np.zeros((par['n_dendrites'], par['layer_dims'][n+1]))
+            for i in range(par['layer_dims'][n+1]):
+                q = np.random.randint(par['n_dendrites'])
+                target[q,i] = 1
+            target_layer.append(target)
+        td_targets.append(target_layer)
 
     return td_targets
 
