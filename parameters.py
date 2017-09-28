@@ -50,43 +50,41 @@ def generate_init_weight(dims):
 
 def gen_td_cases():
 
-    # will create par['n_tasks'] number of templates, each with exactly n non-zero elements equal to one
-    # the distance between all templated will be d
+    # will create par['n_tasks'] number of tunings, each with exactly n non-zero elements equal to one
+    # the distance between all tuned will be d
     n = 3
     d = 4
-    template = np.zeros([par['n_tasks'], par['n_td']])
+    tuning = np.zeros([par['n_tasks'], par['n_td']])
     for i in range(par['n_tasks']):
         q = np.random.permutation(par['n_td'])[:n]
         if i == 0:
-            template[i, q] = 1
+            tuning[i, q] = 1
         else:
-            found_template = False
-            while not found_template:
-
-                potential_template = np.zeros((par['n_td']))
-                potential_template[q] = 1
-                found_template = True
+            found_tuning = False
+            while not found_tuning:
+                potential_tuning = np.zeros((par['n_td']))
+                potential_tuning[q] = 1
+                found_tuning = True
                 for j in range(i-1):
-                    pair_dist = np.sum(np.abs(potential_template - template[j,:]))
+                    pair_dist = np.sum(np.abs(potential_tuning - tuning[j,:]))
                     if not (pair_dist >= d-2 and pair_dist <= d):
-                        found_template = False
+                        found_tuning = False
                         q = np.random.permutation(par['n_td'])[:n]
                         #print(i, pair_dist, q)
                         break
-            template[i, :] = potential_template
+            tuning[i, :] = potential_tuning
 
-    return template
+    return tuning
 
 def gen_td_targets():
 
     td_targets = []
-    for n in range(par['n_layers']-1):
-        for td in par['td_cases']:
-            target = np.zeros((par['n_tasks'],par['n_dendrites'], par['layer_dims'][n+1]))
-            for i, j in product(range(par['n_tasks']), range(par['layer_dims'][n+1])):
-                q = np.random.randint(par['n_dendrites'])
-                target[i,q,j] = 1
-            td_targets.append(target)
+    for n, td in product(range(par['n_layers']-1), par['td_cases']):
+        target = np.zeros((par['n_tasks'],par['n_dendrites'], par['layer_dims'][n+1]))
+        for i, j in product(range(par['n_tasks']), range(par['layer_dims'][n+1])):
+            q = np.random.randint(par['n_dendrites'])
+            target[i,q,j] = 1
+        td_targets.append(target)
 
     return td_targets
 
@@ -99,38 +97,6 @@ def update_dependencies():
     par['td_cases'] = gen_td_cases()
     par['td_targets'] = gen_td_targets()
 
-
-    """
-
-    # Weight matrix sizes
-    par['stim_to_hidden_dims']  = [par['n_hidden'], par['n_dend'], par['n_stim']]
-    par['td_to_hidden_dims']    = [par['n_hidden'], par['n_dend'], par['n_td']]
-    par['hidden_to_out_dims']   = [par['n_out'], par['n_hidden']]
-
-    # Initial weight matrix states
-    par['w_stim0']  = generate_init_weight(par['stim_to_hidden_dims'])
-    par['w_td0']    = generate_init_weight(par['td_to_hidden_dims'])
-    par['w_out0']   = generate_init_weight(par['hidden_to_out_dims'])
-
-    par['b_hid0']   = np.zeros([par['n_hidden'],1], dtype=np.float32)
-    par['b_out0']   = np.zeros([par['n_out'],1], dtype=np.float32)
-
-    par['td_cases'] = gen_td_cases()
-
-    # TD loss helper functions
-    if par['td_loss_type'] == 'z_dot':
-        par['TD_Z'] = np.ones([par['n_tasks'], par['n_hidden'], par['n_tasks'], par['n_hidden']])
-        par['TD_Z'] /= par['n_dend']
-        for i, j in product(range(par['n_tasks']), range(par['n_hidden'])):
-            par['TD_Z'][i,j,i,j] = 0 #1/par['n_dend']
-
-    elif par['td_loss_type'] == 'pairwise_random':
-        par['TD_Z'] = np.zeros([par['n_tasks'], par['n_hidden'], par['n_dend']])
-        for i, j in product(range(par['n_tasks']), range(par['n_hidden'])):
-            q = np.random.randint(par['n_dend'])
-            par['TD_Z'][i,j,q] = 1
-
-    """
 
 def update_parameters(updates):
     """
