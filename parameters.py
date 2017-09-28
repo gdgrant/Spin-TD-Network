@@ -19,23 +19,21 @@ par = {
     'save_dir'          : './savedir/',
     'loss_function'     : 'cross_entropy',    # cross_entropy or MSE
     'td_loss_type'      : 'pairwise_random',
-    'learning_rate'     : 0.005,
+    'learning_rate'     : 0.001,
     'connection_prob'   : 1.,
 
     # Task specs
-    'n_tasks'           : 10,
+    'n_tasks'           : 30,
 
     # Network shape
-    'n_td'              : 20,
-    'n_dendrites'       : 3,
-    'layer_dims'        : [28**2, 20, 20, 10],
+    'n_td'              : 40,
+    'n_dendrites'       : 5,
+    'layer_dims'        : [28**2, 400, 400, 10],
 
     # Training specs
-    'batch_size'        : 8,
-    'num_train_batches' : 300,
-    'num_test_batches'  : 20,
-    'num_iterations'    : 2,
-    'switch_iteration'  : 1,
+    'batch_size'        : 512,
+    'n_train_batches'   : 5000,
+
 }
 
 ############################

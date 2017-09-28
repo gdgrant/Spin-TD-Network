@@ -93,10 +93,13 @@ class Stimulus:
             td.append(self.td_tuning[task_id])
             out.append(output_tuning[sample_id])
 
+
         return np.array(stim), np.array(td), np.array(out)
 
+"""
 s = Stimulus()
 st, t, o = s.make_batch(0, test=True)
 print(np.shape(st))
 print(np.shape(t))
 print(np.shape(o))
+"""
