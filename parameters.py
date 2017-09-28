@@ -19,18 +19,16 @@ par = {
     'save_dir'          : './savedir/',
     'loss_function'     : 'cross_entropy',    # cross_entropy or MSE
     'td_loss_type'      : 'pairwise_random',
-    'learning_rate'     : 0.001,
+    'learning_rate'     : 0.005,
     'connection_prob'   : 1.,
 
     # Task specs
     'n_tasks'           : 10,
 
     # Network shape
-    'n_stim'            : 784,
-    'n_td'              : 10,
-    'n_hidden'          : 12,
-    'n_dend'            : 3,
-    'n_out'             : 10,
+    'n_td'              : 20,
+    'n_dendrites'       : 3,
+    'layer_dims'        : [28**2, 40, 40, 10],
 
     # Training specs
     'batch_size'        : 8,
@@ -51,25 +49,57 @@ def generate_init_weight(dims):
 
 
 def gen_td_cases():
-    if par['n_tasks'] > par['n_td']:
-        raise Exception('Use more TD neurons than tasks.')
-    if par['n_td']%par['n_tasks'] != 0:
-        raise Exception('Use an integer multiple of n_tasks for n_td.')
 
-    m = par['n_td']//par['n_tasks']
+    # will create par['n_tasks'] number of templates, each with exactly n non-zero elements equal to one
+    # the distance between all templated will be d
+    n = 3
+    d = 4
     template = np.zeros([par['n_tasks'], par['n_td']])
-    for n in range(par['n_tasks']):
-        if n == par['n_tasks']-1:
-            template[n, n*m:]=1
+    for i in range(par['n_tasks']):
+        q = np.random.permutation(par['n_td'])[:n]
+        if i == 0:
+            template[i, q] = 1
         else:
-            template[n, n*m:n*m+m]=1
+            found_template = False
+            while not found_template:
+
+                potential_template = np.zeros((par['n_td']))
+                potential_template[q] = 1
+                found_template = True
+                for j in range(i-1):
+                    pair_dist = np.sum(np.abs(potential_template - template[j,:]))
+                    if not (pair_dist >= d-2 and pair_dist <= d):
+                        found_template = False
+                        q = np.random.permutation(par['n_td'])[:n]
+                        #print(i, pair_dist, q)
+                        break
+            template[i, :] = potential_template
 
     return template
 
+def gen_td_targets():
+
+    td_targets = []
+    for n in range(par['n_layers']-1):
+        for td in par['td_cases']:
+            target = np.zeros((par['n_tasks'],par['n_dendrites'], par['layer_dims'][n+1]))
+            for i, j in product(range(par['n_tasks']), range(par['layer_dims'][n+1])):
+                q = np.random.randint(par['n_dendrites'])
+                target[i,q,j] = 1
+            td_targets.append(target)
+
+    return td_targets
 
 def update_dependencies():
     """
     Updates all parameter dependencies
+    """
+
+    par['n_layers'] = len(par['layer_dims'])
+    par['td_cases'] = gen_td_cases()
+    par['td_targets'] = gen_td_targets()
+
+
     """
 
     # Weight matrix sizes
@@ -100,6 +130,7 @@ def update_dependencies():
             q = np.random.randint(par['n_dend'])
             par['TD_Z'][i,j,q] = 1
 
+    """
 
 def update_parameters(updates):
     """
