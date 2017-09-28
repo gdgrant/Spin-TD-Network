@@ -58,7 +58,7 @@ class Model:
             with tf.variable_scope(scope_name):
                 W = tf.get_variable('W', initializer = tf.random_uniform([par['layer_dims'][n],par['n_dendrites'],par['layer_dims'][n+1]], -1.0/np.sqrt(par['layer_dims'][n]), 1.0/np.sqrt(par['layer_dims'][n])), trainable=self.stim_train)
                 b = tf.get_variable('b',initializer = tf.zeros([1,par['n_dendrites'],par['layer_dims'][n+1]]), trainable=self.stim_train)
-                W_td = tf.get_variable('W_td',initializer = tf.random_uniform([par['n_td'],par['n_dendrites'],par['layer_dims'][n+1]], -1.0/np.sqrt(par['layer_dims'][n]), 1.0/np.sqrt(par['layer_dims'][n])), trainable=self.td_train)
+                W_td = tf.get_variable('W_td',initializer = tf.random_uniform([par['n_td'],par['n_dendrites'],par['layer_dims'][n+1]], -0.5, 0.5), trainable=self.td_train)
 
                 print('SHAPES')
                 print('td_data',self.td_data)
@@ -116,19 +116,21 @@ class Model:
         if self.td_train:
             td_cases = []
             self.task_loss = 0
-            count = 0
             self.td_set = []
             for n in range(par['n_layers']-1):
                 scope_name = 'layer' + str(n)
                 with tf.variable_scope(scope_name, reuse = True):
                     W_td = tf.get_variable('W_td')
-                    for td in par['td_cases']:
-                        print(tf.constant(td, dtype=tf.float32))
-                        self.td_set.append(tf.nn.softmax(tf.nn.relu(tf.tensordot(tf.constant(td, dtype=tf.float32), W_td, ([0],[0]))), dim = 0))
+                    for task in range(len(par['td_cases'])):
+                        #print(tf.constant(td, dtype=tf.float32))
+                        self.td_set.append(tf.nn.softmax(tf.tensordot(tf.constant(par['td_cases'][task, :], dtype=tf.float32), W_td, ([0],[0])), dim = 0))
+                        #self.td_set.append(tf.nn.relu(tf.tensordot(tf.constant(td, dtype=tf.float32), W_td, ([0],[0]))))
                         #print('TD SET', self.td_set[-1])
-                        z = tf.constant(par['td_targets'][count], dtype=tf.float32)
+                        z = tf.constant(par['td_targets'][task][n], dtype=tf.float32)
+                        #print('z', z)
+                        #quit()
                         self.task_loss += tf.reduce_sum(tf.square(self.td_set[-1]-z))
-                        count += 1
+
 
 
             """
@@ -196,13 +198,14 @@ def main():
         rate     = par['learning_rate']
         train    = True
 
-        for i in range(20000):
+        for i in range(25000):
 
             _, td_set, loss, gvs = sess.run([model.train_op, model.td_set, model.task_loss, model.grads_and_vars], \
                                             feed_dict={x:stim_in, td:td_in, y:y_hat, lr:rate, st:train})
             if i//1000 == i/1000:
                 print(i, loss)
-        print(td_set)
+        print(td_set[0].shape, len(td_set))
+        print(td_set[0])
         # Task training
         rate     = par['learning_rate']
         train   = False
