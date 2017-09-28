@@ -60,52 +60,14 @@ class Model:
                 b = tf.get_variable('b',initializer = tf.zeros([1,par['n_dendrites'],par['layer_dims'][n+1]]), trainable=self.stim_train)
                 W_td = tf.get_variable('W_td',initializer = tf.random_uniform([par['n_td'],par['n_dendrites'],par['layer_dims'][n+1]], -0.5, 0.5), trainable=self.td_train)
 
-                print('SHAPES')
-                print('td_data',self.td_data)
-                print('W_td',W_td)
                 td  = tf.nn.relu(tf.tensordot(self.td_data, W_td, ([1],[0])))
-                print('td',td)
-                print('W',W)
-                print('x_data', self.x)
-
                 dend_activity = tf.nn.relu(tf.tensordot(self.x, W, ([1],[0]))  + b)
-                print('dend_activity', dend_activity)
 
                 if n < par['n_layers']-2:
                     self.x = tf.reduce_sum(dend_activity*td, axis=1)
                 else:
                     self.y = tf.reduce_sum(dend_activity*td, axis=1)
-                #W_effective = tf.reduce_sum(W*td, axis=1)
-                #b_effective = tf.reduce_sum(b*td, axis=1)
-                #W_effective = tf.reduce_sum(W*td, axis=1)
-                #b_effective = tf.reduce_sum(b*td, axis=1)
 
-                #self.x = tf.nn.relu(tf.matmul(self.x,W_effective) + b_effective)
-
-
-
-        """
-        with tf.variable_scope('parameters'):
-            W_stim = tf.get_variable('W_stim',   initializer=par['w_stim0'], trainable=self.stim_train)
-            W_td   = tf.get_variable('W_td',     initializer=par['w_td0'],   trainable=self.td_train)
-            W_out  = tf.get_variable('W_out',    initializer=par['w_out0'],  trainable=self.stim_train)
-
-            b_hid  = tf.get_variable('b_hid',    initializer=par['b_hid0'],  trainable=self.stim_train)
-            b_out  = tf.get_variable('b_out',    initializer=par['b_out0'],  trainable=self.stim_train)
-
-
-        ### Tensordot specs:
-        # W_in   = [n_hidden_neurons x dendrites_per_neuron x n_input_neurons]
-        # input  = [n_input_neurons x batch_size]
-        # output = [n_hidden_neurons x dendrites_per_neuron x batch_size]
-
-        self.d_stim  = tf.nn.relu(tf.tensordot(W_stim, self.input_data, ([2],[0])))
-        self.d_td    = tf.nn.relu(tf.tensordot(W_td, self.td_data, ([2],[0])))
-        self.d_state = self.d_stim * self.d_td
-
-        self.h_state = tf.nn.relu(tf.reduce_sum(self.d_state, 1) + b_hid)
-        self.y = tf.nn.relu(tf.matmul(tf.nn.relu(W_out),self.h_state)+b_out)
-        """
 
     def optimize(self):
 
@@ -131,37 +93,65 @@ class Model:
                         #quit()
                         self.task_loss += tf.reduce_sum(tf.square(self.td_set[-1]-z))
 
+        elif self.stim_train:
+
+            optimizer = tf.train.AdamOptimizer(learning_rate)
+
+            # Implementation of the intelligent synapses model
+            variables = [var for var in tf.trainable_variables()]
+
+            small_omega_var = {}
+            previous_weights_mu_minus_1 = {}
+            big_omega_var = {}
+            aux_loss = 0.0
+
+            reset_small_omega_ops = []
+            update_small_omega_ops = []
+            update_big_omega_ops = []
+            #for var, task_num in zip(variables, range(n_tasks)):
+            if param_c > 0:
+
+            	for var in variables:
+                    print(var.op.name)
+                    print(var.get_shape())
+                    quit()
+            		small_omega_var[var.op.name] = tf.Variable(tf.zeros(var.get_shape()), trainable=False)
+            		reset_small_omega_ops.append( tf.assign( small_omega_var[var.op.name], small_omega_var[var.op.name]*0.0 ) )
+
+            		#small_omega_var[var.op.name, task_num] = tf.Variable(tf.zeros(var.get_shape()), trainable=False)
+            		previous_weights_mu_minus_1[var.op.name, task_num] = tf.Variable(tf.zeros(var.get_shape()), trainable=False)
+            		big_omega_var[var.op.name, task_num] = tf.Variable(tf.zeros(var.get_shape()), trainable=False)
+
+            		aux_loss += tf.reduce_sum(tf.multiply( big_omega_var[var.op.name, task_num], tf.square(previous_weights_mu_minus_1[var.op.name, task_num] - var) ))
+
+            		reset_small_omega_ops.append( tf.assign( previous_weights_mu_minus_1[var.op.name, task_num], var ) )
+            		#reset_small_omega_ops.append( tf.assign( small_omega_var[var.op.name, task_num], small_omega_var[var.op.name, task_num]*0.0 ) )
+
+            		#update_big_omega_ops.append( tf.assign_add( big_omega_var[var.op.name, task_num],  task_vector[task_num]*tf.div(small_omega_var[var.op.name, task_num], \
+            			#(param_xi + tf.square(var-previous_weights_mu_minus_1[var.op.name, task_num])))))
+
+            		update_big_omega_ops.append( tf.assign_add( big_omega_var[var.op.name, task_num],  task_vector[task_num]*tf.div(small_omega_var[var.op.name], \
+            			(param_xi + tf.square(var-previous_weights_mu_minus_1[var.op.name, task_num])))))
+
+            	# After each task is complete, call update_big_omega and reset_small_omega
+            	update_big_omega = tf.group(*update_big_omega_ops)
+            	#new_big_omega_var = big_omega_var
+
+            	# Reset_small_omega also makes a backup of the final weights, used as hook in the auxiliary loss
+            	reset_small_omega = tf.group(*reset_small_omega_ops)
 
 
-            """
-            if self.td_train:
-                with tf.variable_scope('parameters', reuse=True):
-                    W_td = tf.get_variable('W_td')
+            # Gradient of the loss function for the current task
+            gradients = optimizer.compute_gradients(cross_entropy, var_list=variables)
 
-            td_cases = []
-            for td in par['td_cases']:
-                td_cases.append(tf.nn.relu(tf.tensordot(W_td, tf.constant(td, dtype=tf.float32), ([2],[0]))))
-            self.td_set = tf.stack(td_cases)
+            # Gradient of the loss+aux function, in order to both perform training and to compute delta_weights
+            if param_c > 0:
+            	gradients_with_aux = optimizer.compute_gradients(cross_entropy + param_c*aux_loss, var_list=variables)
+            else:
+            	gradients_with_aux = gradients
 
-            if par['td_loss_type'] == 'naive_dot':
-                td_cases = tf.unstack(self.td_set, axis=1)
-                self.task_loss = 0.
-                for neuron in td_cases:
-                    t = tf.reduce_prod(neuron, axis=0)  # Across tasks
-                    d = tf.reduce_prod(neuron, axis=1)  # Across dendrites
-                    self.task_loss += tf.square(tf.reduce_sum(t)+tf.reduce_sum(d))
 
-            elif par['td_loss_type'] == 'z_dot':
-                td_set = tf.nn.softmax(self.td_set, dim=2)
-                y_prime = tf.tensordot(td_set, td_set, [[2],[2]])
-                z = tf.constant(par['TD_Z'], dtype=tf.float32)
-                self.task_loss = tf.reduce_sum(tf.square(y_prime-z))
 
-            elif par['td_loss_type'] == 'pairwise_random':
-                td_set = self.td_set
-                z = tf.constant(par['TD_Z'], dtype=tf.float32)
-                self.task_loss = tf.reduce_sum(tf.square(td_set-z))
-            """
 
             opt = tf.train.GradientDescentOptimizer(learning_rate=self.learning_rate)
             self.grads_and_vars = opt.compute_gradients(self.task_loss)
