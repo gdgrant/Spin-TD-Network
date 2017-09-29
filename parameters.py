@@ -19,8 +19,7 @@ par = {
     'save_dir'          : './savedir/',
     'loss_function'     : 'cross_entropy',    # cross_entropy or MSE
     'td_loss_type'      : 'pairwise_random',
-    'learning_rate'     : 0.001,
-    'connection_prob'   : 1.,
+    'learning_rate'     : 0.002,
 
     # Task specs
     'n_tasks'           : 30,
@@ -31,9 +30,12 @@ par = {
     'layer_dims'        : [28**2, 400, 400, 10],
 
     # Training specs
-    'batch_size'        : 512,
+    'batch_size'        : 1024,
     'n_train_batches'   : 5000,
 
+    # Omega parameters
+    'omega_c'           : 0.1,
+    'omega_xi'          : 0.01
 }
 
 ############################
@@ -51,7 +53,7 @@ def gen_td_cases():
     # will create par['n_tasks'] number of tunings, each with exactly n non-zero elements equal to one
     # the distance between all tuned will be d
     n = 3
-    min_dist = 2
+    min_dist = 4
     tuning = np.zeros([par['n_tasks'], par['n_td']])
     for i in range(par['n_tasks']):
         q = np.random.permutation(par['n_td'])[:n]

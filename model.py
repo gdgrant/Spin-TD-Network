@@ -29,19 +29,20 @@ class TrainTopDown:
                     z = tf.constant(par['td_targets'][task][n], dtype=tf.float32)
                     self.task_loss += tf.reduce_sum(tf.square(self.td_set[-1]-z))
 
-        opt = tf.train.GradientDescentOptimizer(learning_rate=0.005)
+        opt = tf.train.GradientDescentOptimizer(learning_rate=0.01)
         self.grads_and_vars = opt.compute_gradients(self.task_loss)
         self.train_op = opt.apply_gradients(self.grads_and_vars)
 
 class Model:
 
-    def __init__(self, input_data, td_data, target_data):
+    def __init__(self, input_data, td_data, target_data, droput_keep_pct):
 
         # Load the input activity, the target data, and the training mask
         # for this batch of trials
         self.input_data     = input_data
         self.td_data        = td_data
         self.target_data    = target_data
+        self.droput_keep_pct = droput_keep_pct
 
         # Build the TensorFlow graph
         self.run_model()
@@ -72,6 +73,7 @@ class Model:
 
 
         self.x = self.input_data
+        self.td_gating = []
         for n in range(par['n_layers']-1):
             scope_name = 'layer' + str(n)
             with tf.variable_scope(scope_name):
@@ -79,21 +81,19 @@ class Model:
                 b = tf.get_variable('b', initializer = tf.zeros([1,par['n_dendrites'],par['layer_dims'][n+1]]), trainable = True)
                 W_td = tf.get_variable('W_td', initializer = par['W_td0'][n], trainable = False)
 
-                td  = tf.nn.softmax(tf.tensordot(self.td_data, W_td, ([1],[0])), dim = 1)
+                self.td_gating.append(tf.nn.softmax(tf.tensordot(self.td_data, W_td, ([1],[0])), dim = 1))
+                print('gating ', self.td_gating[-1].shape)
 
                 if n < par['n_layers']-2:
                     dend_activity = tf.nn.relu(tf.tensordot(self.x, W, ([1],[0]))  + b)
-                    self.x = tf.reduce_sum(dend_activity*td, axis=1)
+                    self.x = tf.nn.dropout(tf.reduce_sum(dend_activity*self.td_gating[-1], axis=1), self.droput_keep_pct)
                 else:
                     dend_activity = tf.tensordot(self.x, W, ([1],[0]))  + b
-                    self.y = tf.nn.softmax(tf.reduce_sum(dend_activity*td, axis=1), dim = 1)
+                    self.y = tf.nn.softmax(tf.reduce_sum(dend_activity*self.td_gating[-1], axis=1), dim = 1)
 
 
     def optimize(self):
 
-
-        param_c = 0.0
-        param_xi = 0.1
         epsilon = 1e-4
         optimizer = tf.train.AdamOptimizer(learning_rate = par['learning_rate'])
 
@@ -108,10 +108,14 @@ class Model:
         update_small_omega_ops = []
         update_big_omega_ops = []
         #for var, task_num in zip(variables, range(n_tasks)):
-        if param_c > 0:
+        if par['omega_c'] > 0:
             for var in variables:
-                print(var.op.name)
-                print(var.get_shape())
+
+                layer_num = int([s for s in var.op.name if s.isdigit()][0])
+                var_dim = var.get_shape()[0].value
+                td_gating = tf.tile(tf.reduce_mean(self.td_gating[layer_num], axis=0, keep_dims = True),[var_dim,1,1])
+
+                print(var.op.name, var.get_shape(), layer_num, td_gating.shape)
 
                 small_omega_var[var.op.name] = tf.Variable(tf.zeros(var.get_shape()), trainable=False)
                 reset_small_omega_ops.append( tf.assign( small_omega_var[var.op.name], small_omega_var[var.op.name]*0.0 ) )
@@ -128,23 +132,23 @@ class Model:
                 #update_big_omega_ops.append( tf.assign_add( big_omega_var[var.op.name, task_num],  task_vector[task_num]*tf.div(small_omega_var[var.op.name, task_num], \
                 	#(param_xi + tf.square(var-previous_weights_mu_minus_1[var.op.name, task_num])))))
 
-                update_big_omega_ops.append( tf.assign_add( big_omega_var[var.op.name],  tf.div(small_omega_var[var.op.name], \
-                	(param_xi + tf.square(var-previous_weights_mu_minus_1[var.op.name])))))
+                update_big_omega_ops.append( tf.assign_add( big_omega_var[var.op.name],  td_gating*tf.div(small_omega_var[var.op.name], \
+                	(par['omega_xi'] + tf.square(var-previous_weights_mu_minus_1[var.op.name])))))
 
             # After each task is complete, call update_big_omega and reset_small_omega
-            update_big_omega = tf.group(*update_big_omega_ops)
+            self.update_big_omega = tf.group(*update_big_omega_ops)
             #new_big_omega_var = big_omega_var
 
             # Reset_small_omega also makes a backup of the final weights, used as hook in the auxiliary loss
-            reset_small_omega = tf.group(*reset_small_omega_ops)
+            self.reset_small_omega = tf.group(*reset_small_omega_ops)
 
         self.task_loss = -tf.reduce_sum( self.target_data*tf.log(self.y+epsilon) + (1.-self.target_data)*tf.log(1.-self.y+epsilon) )
         # Gradient of the loss function for the current task
         gradients = optimizer.compute_gradients(self.task_loss, var_list=variables)
 
             # Gradient of the loss+aux function, in order to both perform training and to compute delta_weights
-        if param_c > 0:
-        	gradients_with_aux = optimizer.compute_gradients(self.task_loss + param_c*aux_loss, var_list=variables)
+        if par['omega_c'] > 0:
+        	gradients_with_aux = optimizer.compute_gradients(self.task_loss + par['omega_c']*aux_loss, var_list=variables)
         else:
         	gradients_with_aux = gradients
 
@@ -153,16 +157,16 @@ class Model:
         """
         capped_gvs = []
         for grad, var in gradients_with_aux:
-        	capped_gvs.append((tf.clip_by_norm(grad, 5), var))
+        	capped_gvs.append((tf.clip_by_norm(grad, 1), var))
 
         # This is called every batch
         #print(small_omega_var.keys())
-        if param_c > 0:
+        if par['omega_c'] > 0:
         	for i, (grad,var) in enumerate(gradients_with_aux):
         		update_small_omega_ops.append( tf.assign_add( small_omega_var[var.op.name], par['learning_rate']*capped_gvs[i][0]*gradients[i][0] ) )
         		#for j in range(n_tasks):
         			#update_small_omega_ops.append( tf.assign_add( small_omega_var[var.op.name, j], task_vector[j]*learning_rate*capped_gvs[i][0]*gradients[i][0] ) ) # small_omega -= delta_weight(t)*gradient(t)
-        	update_small_omega = tf.group(*update_small_omega_ops) # 1) update small_omega after each train!
+        	self.update_small_omega = tf.group(*update_small_omega_ops) # 1) update small_omega after each train!
 
         self.train_op = optimizer.apply_gradients(capped_gvs)
 
@@ -181,7 +185,7 @@ def main():
         model = TrainTopDown()
         sess.run(tf.global_variables_initializer())
 
-        for i in range(15000):
+        for i in range(20000):
             _, loss = sess.run([model.train_op, model.task_loss])
             if i//1000 == i/1000:
                 print('Iteration = ',i,' Loss = ', loss)
@@ -207,12 +211,13 @@ def main():
     x   = tf.placeholder(tf.float32, [par['batch_size'], par['layer_dims'][0]], 'stim')
     td  = tf.placeholder(tf.float32, [par['batch_size'], par['n_td']], 'TD')
     y   = tf.placeholder(tf.float32, [ par['batch_size'], par['layer_dims'][-1]], 'out')
+    droput_keep_pct = tf.placeholder(tf.float32, [] , 'dropout')
 
     stim = stimulus.Stimulus()
 
 
     with tf.Session() as sess:
-        model   = Model(x, td, y)
+        model   = Model(x, td, y, droput_keep_pct)
         sess.run(tf.global_variables_initializer())
         t_start = time.time()
 
@@ -220,12 +225,19 @@ def main():
             for i in range(par['n_train_batches']):
 
                 stim_in, td_in, y_hat = stim.make_batch(task, test = False)
-                sess.run(model.train_op, feed_dict={x:stim_in, td:td_in, y:y_hat})
+                if par['omega_c'] > 0:
+                    sess.run([model.train_op,model.update_small_omega], feed_dict={x:stim_in, td:td_in, y:y_hat, droput_keep_pct:0.75})
+                else:
+                    sess.run(model.train_op, feed_dict={x:stim_in, td:td_in, y:y_hat, droput_keep_pct:0.75})
+
+            if par['omega_c'] > 0:
+                sess.run(model.update_big_omega,feed_dict={td:td_in})
+                sess.run(model.reset_small_omega)
 
             accuracy = np.zeros((task+1))
             for test_task in range(task+1):
                 stim_in, td_in, y_hat = stim.make_batch(test_task, test = True)
-                accuracy[test_task] = sess.run(model.accuracy, feed_dict={x:stim_in, td:td_in, y:y_hat})
+                accuracy[test_task] = sess.run(model.accuracy, feed_dict={x:stim_in, td:td_in, y:y_hat, droput_keep_pct:1.0})
             print(task, accuracy)
 
 
