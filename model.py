@@ -86,14 +86,14 @@ class Model:
                 reset_small_omega_ops.append( tf.assign( small_omega_var[var.op.name], small_omega_var[var.op.name]*0.0 ) )
 
                 previous_weights_mu_minus_1[var.op.name] = tf.Variable(tf.zeros(var.get_shape()), trainable=False)
-                big_omega_var[var.op.name] = tf.Variable(tf.zeros(var.get_shape()), trainable=False)
+                self.big_omega_var[var.op.name] = tf.Variable(tf.zeros(var.get_shape()), trainable=False)
 
-                aux_loss += tf.reduce_sum(tf.multiply( big_omega_var[var.op.name], tf.square(previous_weights_mu_minus_1[var.op.name] - var) ))
+                aux_loss += tf.reduce_sum(tf.multiply( self.big_omega_var[var.op.name], tf.square(previous_weights_mu_minus_1[var.op.name] - var) ))
 
                 reset_small_omega_ops.append( tf.assign( previous_weights_mu_minus_1[var.op.name], var ) )
 
 
-                update_big_omega_ops.append( tf.assign_add( big_omega_var[var.op.name],  tf.div(small_omega_var[var.op.name], \
+                update_big_omega_ops.append( tf.assign_add( self.big_omega_var[var.op.name],  tf.div(small_omega_var[var.op.name], \
                 	(par['omega_xi'] + tf.square(var-previous_weights_mu_minus_1[var.op.name])))))
 
             # After each task is complete, call update_big_omega and reset_small_omega
@@ -211,9 +211,10 @@ def main():
 
                 stim_in, td_in, y_hat = stim.make_batch(task, test = False)
                 if par['omega_c'] > 0:
-                    loss,_,_,capped_gvs, td_gating = sess.run([model.task_loss, model.train_op,model.update_small_omega, model.capped_gvs, model.td_gating], feed_dict={x:stim_in, td:td_in, y:y_hat, droput_keep_pct:1.0})
+                    loss,_,_,capped_gvs, td_gating = sess.run([model.task_loss, model.train_op,model.update_small_omega, model.capped_gvs, model.td_gating], \
+                        feed_dict={x:stim_in, td:td_in, y:y_hat, droput_keep_pct:par['keep_pct']})
                 else:
-                    sess.run(model.train_op, feed_dict={x:stim_in, td:td_in, y:y_hat, droput_keep_pct:0.75})
+                    sess.run(model.train_op, feed_dict={x:stim_in, td:td_in, y:y_hat, droput_keep_pct: par['keep_pct']})
 
                 if i//100 == i/100:
                     print(i, loss)
@@ -221,12 +222,18 @@ def main():
             if par['omega_c'] > 0:
                 sess.run(model.update_big_omega,feed_dict={td:td_in})
                 sess.run(model.reset_small_omega)
+                big_omegas = sess.run(model.big_omega_var)
+
 
             accuracy = np.zeros((task+1))
             for test_task in range(task+1):
                 stim_in, td_in, y_hat = stim.make_batch(test_task, test = True)
                 accuracy[test_task] = sess.run(model.accuracy, feed_dict={x:stim_in, td:td_in, y:y_hat, droput_keep_pct:1.0})
             print('Task ',task, ' Mean ', np.mean(accuracy), ' First ', accuracy[0], ' Last ', accuracy[-1])
+
+            if par['save_analysis']:
+                save_results = {'task': task, 'accuracy': accuracy, 'big_omegas': big_omegas, 'par': par}
+                pickle.dump(save_results, open(par['save_dir'] + 'analysis.pkl'))
 
 
 
