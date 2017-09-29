@@ -50,17 +50,31 @@ class Model:
         for n in range(par['n_layers']-1):
             scope_name = 'layer' + str(n)
             with tf.variable_scope(scope_name):
-                W = tf.get_variable('W', initializer = tf.random_uniform([par['layer_dims'][n],par['n_dendrites'],par['layer_dims'][n+1]], -1.0/np.sqrt(par['layer_dims'][n]), 1.0/np.sqrt(par['layer_dims'][n])), trainable = True)
-                b = tf.get_variable('b', initializer = tf.zeros([1,par['n_dendrites'],par['layer_dims'][n+1]]), trainable = True)
-                W_td = tf.get_variable('W_td', initializer = par['W_td0'][n], trainable = False)
-                self.td_gating.append(tf.nn.softmax(tf.tensordot(self.td_data, W_td, ([1],[0])), dim = 1))
+                if n < par['n_layers']-2 or par['dendrites_final_layer']:
+                    W = tf.get_variable('W', initializer = tf.random_uniform([par['layer_dims'][n],par['n_dendrites'],par['layer_dims'][n+1]], -1.0/np.sqrt(par['layer_dims'][n]), 1.0/np.sqrt(par['layer_dims'][n])), trainable = True)
+                    b = tf.get_variable('b', initializer = tf.zeros([1,par['n_dendrites'],par['layer_dims'][n+1]]), trainable = True)
+                    W_td = tf.get_variable('W_td', initializer = par['W_td0'][n], trainable = False)
+                    self.td_gating.append(tf.nn.softmax(tf.tensordot(self.td_data, W_td, ([1],[0])), dim = 1))
+                else:
+                    # final layer -> no dendrites
+                    W = tf.get_variable('W', initializer = tf.random_uniform([par['layer_dims'][n],par['layer_dims'][n+1]], -1.0/np.sqrt(par['layer_dims'][n]), 1.0/np.sqrt(par['layer_dims'][n])), trainable = True)
+                    b = tf.get_variable('b', initializer = tf.zeros([1,par['layer_dims'][n+1]]), trainable = True)
+
 
                 if n < par['n_layers']-2:
                     dend_activity = tf.nn.relu(tf.tensordot(self.x, W, ([1],[0]))  + b)
                     self.x = tf.nn.dropout(tf.reduce_sum(dend_activity*self.td_gating[-1], axis=1), self.droput_keep_pct)
                 else:
-                    dend_activity = tf.tensordot(self.x, W, ([1],[0]))  + b
-                    self.y = tf.nn.softmax(tf.reduce_sum(dend_activity*self.td_gating[-1], axis=1), dim = 1)
+                    if par['dendrites_final_layer']:
+                        dend_activity = tf.tensordot(self.x, W, ([1],[0]))  + b
+                        self.y = tf.nn.softmax(tf.reduce_sum(dend_activity*self.td_gating[-1], axis=1), dim = 1)
+                    else:
+                        print('x', self.x)
+                        print('W', W)
+                        self.y = tf.nn.softmax(tf.matmul(self.x,W), dim = 1)
+                        print('y', y)
+                        quit()
+
 
 
     def optimize(self):

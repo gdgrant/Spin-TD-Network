@@ -16,35 +16,36 @@ global par
 
 par = {
     # General parameters
-    'save_dir'          : './savedir/',
-    'loss_function'     : 'cross_entropy',    # cross_entropy or MSE
-    'learning_rate'     : 0.001,
-    'train_top_down'    : True,
-    'task'              : 'mnist',
+    'save_dir'              : './savedir/',
+    'loss_function'         : 'cross_entropy',    # cross_entropy or MSE
+    'learning_rate'         : 0.001,
+    'train_top_down'        : True,
+    'task'                  : 'mnist',
 
     # Task specs
-    'n_tasks'           : 30,
+    'n_tasks'               : 30,
 
     # Network shape
-    'n_td'              : 40,
-    'n_dendrites'       : 5,
-    'layer_dims'        : [28**2, 400, 400, 10],
+    'n_td'                  : 40,
+    'n_dendrites'           : 5,
+    'layer_dims'            : [28**2, 400, 400, 10],
+    'dendrites_final_layer' : False,
 
     # Dropout
-    'keep_pct'          : 1.0,
-    
+    'keep_pct'              : 1.0,
+
     # Training specs
-    'batch_size'        : 1024,
-    'n_train_batches'   : 4000,
-    'n_batches_top_down': 40000,
+    'batch_size'            : 1024,
+    'n_train_batches'       : 4000,
+    'n_batches_top_down'    : 40000,
 
     # Omega parameters
-    'omega_c'           : 0.1,
-    'omega_xi'          : 0.1,
+    'omega_c'               : 0.1,
+    'omega_xi'              : 0.1,
 
     # Projection of top-down activity
     # Only one can be True
-    'clamp'              : 'dendrites' # can be either 'dendrites' or 'neurons' or None
+    'clamp'                 : 'dendrites' # can be either 'dendrites' or 'neurons' or None
 
 }
 
