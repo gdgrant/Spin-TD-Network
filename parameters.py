@@ -18,9 +18,9 @@ par = {
     # General parameters
     'save_dir'          : './savedir/',
     'loss_function'     : 'cross_entropy',    # cross_entropy or MSE
-    'td_loss_type'      : 'pairwise_random',
-    'learning_rate'     : 0.002,
-    'train_top_down'    : False,
+    'learning_rate'     : 0.001,
+    'train_top_down'    : True,
+    'task'              : 'mnist',
 
     # Task specs
     'n_tasks'           : 30,
@@ -32,11 +32,17 @@ par = {
 
     # Training specs
     'batch_size'        : 1024,
-    'n_train_batches'   : 5000,
+    'n_train_batches'   : 4000,
+    'n_batches_top_down': 40000,
 
     # Omega parameters
     'omega_c'           : 0.1,
-    'omega_xi'          : 0.01
+    'omega_xi'          : 0.1,
+
+    # Projection of top-down activity
+    # Only one can be True
+    'clamp'              : 'dendrites' # can be either 'dendrites' or 'neurons'
+
 }
 
 ############################
@@ -80,6 +86,35 @@ def gen_td_cases():
 def gen_td_targets():
 
     td_targets = []
+    
+    if par['clamp'] == 'dendrites':
+
+        for n in range(par['n_layers']-1):
+            td = np.zeros((par['n_tasks'],par['n_dendrites'], par['layer_dims'][n+1]), dtype = np.float32)
+            for i in range(par['layer_dims'][n+1]):
+                for t in range(0, par['n_tasks'], par['n_dendrites']):
+                    q = np.random.permutation(par['n_dendrites'])
+                    for j, d in enumerate(q):
+                        td[t+j,d,i] = 1
+                    #print(td[:,:,i])
+                    #quit()
+            td_targets.append(td)
+
+    elif par['clamp'] == 'neurons':
+
+        divide_network = 5 # number of groups networks is to be divided into
+
+        for n in range(par['n_layers']-1):
+            td = np.zeros((par['n_tasks'],par['n_dendrites'], par['layer_dims'][n+1]), dtype = np.float32)
+            for i in range(par['layer_dims'][n+1]):
+                for t in range(par['n_tasks']):
+                    if t%divide_network == i%divide_network:
+                        td[t,:,i] = 1
+
+    return td_targets
+
+    """
+    td_targets = []
     for task in range(par['n_tasks']):
         target_layer = []
         for n in range(par['n_layers']-1):
@@ -90,7 +125,9 @@ def gen_td_targets():
             target_layer.append(target)
         td_targets.append(target_layer)
 
+
     return td_targets
+    """
 
 def update_dependencies():
     """
