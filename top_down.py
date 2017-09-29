@@ -6,6 +6,10 @@ class TrainTopDown:
 
     def __init__(self):
 
+        if par['clamp'] is None:
+            self.td_set = np.ones((par['n_tasks']), dtype = np.float32)
+            return -1
+
         td_cases = []
         self.task_loss = 0
         self.td_set = []
