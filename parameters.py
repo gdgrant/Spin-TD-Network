@@ -30,6 +30,9 @@ par = {
     'n_dendrites'       : 5,
     'layer_dims'        : [28**2, 400, 400, 10],
 
+    # Dropout
+    'keep_pct'          : 1.0,
+    
     # Training specs
     'batch_size'        : 1024,
     'n_train_batches'   : 4000,
@@ -41,7 +44,7 @@ par = {
 
     # Projection of top-down activity
     # Only one can be True
-    'clamp'              : 'dendrites' # can be either 'dendrites' or 'neurons'
+    'clamp'              : 'dendrites' # can be either 'dendrites' or 'neurons' or None
 
 }
 
@@ -86,7 +89,7 @@ def gen_td_cases():
 def gen_td_targets():
 
     td_targets = []
-    
+
     if par['clamp'] == 'dendrites':
 
         for n in range(par['n_layers']-1):
@@ -110,6 +113,9 @@ def gen_td_targets():
                 for t in range(par['n_tasks']):
                     if t%divide_network == i%divide_network:
                         td[t,:,i] = 1
+
+    else:
+        td = []
 
     return td_targets
 
