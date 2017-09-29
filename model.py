@@ -3,6 +3,7 @@ import numpy as np
 import stimulus
 from parameters import *
 import os, time
+import pickle
 
 # Ignore startup TensorFlow warnings
 os.environ['TF_CPP_MIN_LOG_LEVEL']='2'
@@ -113,9 +114,7 @@ class Model:
 
                 layer_num = int([s for s in var.op.name if s.isdigit()][0])
                 var_dim = var.get_shape()[0].value
-                td_gating = tf.tile(tf.reduce_mean(self.td_gating[layer_num], axis=0, keep_dims = True),[var_dim,1,1])
-
-                print(var.op.name, var.get_shape(), layer_num, td_gating.shape)
+                td_gating = tf.tile(tf.reduce_mean(self.td_gating[layer_num], axis=0, keep_dims = True), [var_dim, 1, 1])
 
                 small_omega_var[var.op.name] = tf.Variable(tf.zeros(var.get_shape()), trainable=False)
                 reset_small_omega_ops.append( tf.assign( small_omega_var[var.op.name], small_omega_var[var.op.name]*0.0 ) )
@@ -155,20 +154,20 @@ class Model:
         """
         Apply any applicable weights masks to the gradient and clip
         """
-        capped_gvs = []
+        self.capped_gvs = []
         for grad, var in gradients_with_aux:
-        	capped_gvs.append((tf.clip_by_norm(grad, 1), var))
+        	self.capped_gvs.append((tf.clip_by_norm(grad, 1), var))
 
         # This is called every batch
         #print(small_omega_var.keys())
         if par['omega_c'] > 0:
         	for i, (grad,var) in enumerate(gradients_with_aux):
-        		update_small_omega_ops.append( tf.assign_add( small_omega_var[var.op.name], par['learning_rate']*capped_gvs[i][0]*gradients[i][0] ) )
+        		update_small_omega_ops.append( tf.assign_add( small_omega_var[var.op.name], par['learning_rate']*self.capped_gvs[i][0]*gradients[i][0] ) )
         		#for j in range(n_tasks):
         			#update_small_omega_ops.append( tf.assign_add( small_omega_var[var.op.name, j], task_vector[j]*learning_rate*capped_gvs[i][0]*gradients[i][0] ) ) # small_omega -= delta_weight(t)*gradient(t)
         	self.update_small_omega = tf.group(*update_small_omega_ops) # 1) update small_omega after each train!
 
-        self.train_op = optimizer.apply_gradients(capped_gvs)
+        self.train_op = optimizer.apply_gradients(self.capped_gvs)
 
         correct_prediction = tf.equal(tf.argmax(self.y,1), tf.argmax(self.target_data,1))
         self.accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
@@ -177,29 +176,38 @@ class Model:
 
 def main():
 
+    # file to store/load top-down weights
+    td_weight_fn = par['save_dir'] + 'top_down_weights.pkl'
 
-    print('Training top-down weights')
+    if par['train_top_down']:
 
-    tf.reset_default_graph()
-    with tf.Session() as sess:
-        model = TrainTopDown()
-        sess.run(tf.global_variables_initializer())
+        print('Training top-down weights')
+        tf.reset_default_graph()
+        with tf.Session() as sess:
+            model = TrainTopDown()
+            sess.run(tf.global_variables_initializer())
 
-        for i in range(20000):
-            _, loss = sess.run([model.train_op, model.task_loss])
-            if i//1000 == i/1000:
-                print('Iteration = ',i,' Loss = ', loss)
-        # extract top-down weights
-        W_td = []
-        for n in range(par['n_layers']-1):
-            scope_name = 'layer' + str(n)
-            with tf.variable_scope(scope_name, reuse = True):
-                W = tf.get_variable('W_td')
-                W_td.append(W.eval())
+            for i in range(2000):
+                _, loss = sess.run([model.train_op, model.task_loss])
+                if i//1000 == i/1000:
+                    print('Iteration = ',i,' Loss = ', loss)
+            # extract top-down weights
+            W_td = []
+            for n in range(par['n_layers']-1):
+                scope_name = 'layer' + str(n)
+                with tf.variable_scope(scope_name, reuse = True):
+                    W = tf.get_variable('W_td')
+                    W_td.append(W.eval())
 
-    par['W_td0'] = W_td
-    print('Finished training top-down weights')
+        par['W_td0'] = W_td
+        print('Finished training top-down weights... saving data')
 
+        pickle.dump(W_td, open(td_weight_fn,'wb'))
+
+    else:
+        print('Loading top-down weights')
+        W_td = pickle.load(open(td_weight_fn,'rb'))
+        par['W_td0'] = W_td
 
     print('\nRunning model.\n')
 
@@ -226,9 +234,15 @@ def main():
 
                 stim_in, td_in, y_hat = stim.make_batch(task, test = False)
                 if par['omega_c'] > 0:
-                    sess.run([model.train_op,model.update_small_omega], feed_dict={x:stim_in, td:td_in, y:y_hat, droput_keep_pct:0.75})
+                    _,_,_,capped_gvs, td_gating = sess.run([model.train_op,model.update_small_omega, model.capped_gvs, model.td_gating], feed_dict={x:stim_in, td:td_in, y:y_hat, droput_keep_pct:0.75})
                 else:
                     sess.run(model.train_op, feed_dict={x:stim_in, td:td_in, y:y_hat, droput_keep_pct:0.75})
+
+            print(capped_gvs[0].shape, td_gating[0].shape)
+            print(len(capped_gvs), len(td_gating))
+            print(capped_gvs[0])
+            print(td_gating[0])
+            quit()
 
             if par['omega_c'] > 0:
                 sess.run(model.update_big_omega,feed_dict={td:td_in})

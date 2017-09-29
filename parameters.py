@@ -20,6 +20,7 @@ par = {
     'loss_function'     : 'cross_entropy',    # cross_entropy or MSE
     'td_loss_type'      : 'pairwise_random',
     'learning_rate'     : 0.002,
+    'train_top_down'    : False,
 
     # Task specs
     'n_tasks'           : 30,
