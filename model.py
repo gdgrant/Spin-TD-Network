@@ -69,11 +69,9 @@ class Model:
                         dend_activity = tf.tensordot(self.x, W, ([1],[0]))  + b
                         self.y = tf.nn.softmax(tf.reduce_sum(dend_activity*self.td_gating[-1], axis=1), dim = 1)
                     else:
-                        print('x', self.x)
-                        print('W', W)
-                        self.y = tf.nn.softmax(tf.matmul(self.x,W), dim = 1)
-                        print('y', y)
-                        quit()
+                        #print('x', self.x)
+                        #print('W', W)
+                        self.y = tf.nn.softmax(tf.matmul(self.x,W) + b, dim = 1)
 
 
 
@@ -84,9 +82,10 @@ class Model:
 
         # Use all trainable variables, except those in the convolutional layers
         variables = [var for var in tf.trainable_variables() if not var.op.name.find('Conv')==0]
+        print('variables ', variables)
         small_omega_var = {}
         previous_weights_mu_minus_1 = {}
-        big_omega_var = {}
+        self.big_omega_var = {}
         aux_loss = 0.0
 
         reset_small_omega_ops = []
@@ -133,7 +132,6 @@ class Model:
         self.capped_gvs = []
         for grad, var in gradients_with_aux:
 
-
             if var.op.name.find('Conv') == 0:
                 # convolutional layer
                 gate = self.conv_gate if var.op.name.find('Conv') == 0 else tf.constant(np.float32(1))
@@ -142,7 +140,10 @@ class Model:
                 # fully connected layer
                 layer_num = int([s for s in var.op.name if s.isdigit()][0])
                 var_dim = var.get_shape()[0].value
-                td_gating = tf.tile(tf.reduce_mean(self.td_gating[layer_num], axis=0, keep_dims = True), [var_dim, 1, 1])
+                if layer_num < par['n_layers']-2 or par['dendrites_final_layer']:
+                    td_gating = tf.tile(tf.reduce_mean(self.td_gating[layer_num], axis=0, keep_dims = True), [var_dim, 1, 1])
+                else:
+                    td_gating = tf.constant(np.float32(1))
                 gate = tf.constant(np.float32(1))
 
             self.capped_gvs.append((tf.clip_by_norm(gate*td_gating*grad, 1), var))
@@ -150,11 +151,13 @@ class Model:
         # This is called every batch
         #print(small_omega_var.keys())
         if par['omega_c'] > 0:
-        	for i, (grad,var) in enumerate(gradients_with_aux):
-        		update_small_omega_ops.append( tf.assign_add( small_omega_var[var.op.name], par['learning_rate']*self.capped_gvs[i][0]*gradients[i][0] ) )
-        		#for j in range(n_tasks):
-        			#update_small_omega_ops.append( tf.assign_add( small_omega_var[var.op.name, j], task_vector[j]*learning_rate*capped_gvs[i][0]*gradients[i][0] ) ) # small_omega -= delta_weight(t)*gradient(t)
-        	self.update_small_omega = tf.group(*update_small_omega_ops) # 1) update small_omega after each train!
+            for i, (grad,var) in enumerate(gradients_with_aux):
+                print(i,var.op.name)
+                update_small_omega_ops.append( tf.assign_add( small_omega_var[var.op.name], par['learning_rate']*self.capped_gvs[i][0]*gradients[i][0] ) )
+                #for j in range(n_tasks):
+                #update_small_omega_ops.append( tf.assign_add( small_omega_var[var.op.name, j], task_vector[j]*learning_rate*capped_gvs[i][0]*gradients[i][0] ) ) # small_omega -= delta_weight(t)*gradient(t)
+
+            self.update_small_omega = tf.group(*update_small_omega_ops) # 1) update small_omega after each train!
 
         self.train_op = optimizer.apply_gradients(self.capped_gvs)
 
@@ -247,7 +250,7 @@ def main():
 
             if par['save_analysis']:
                 save_results = {'task': task, 'accuracy': accuracy, 'big_omegas': big_omegas, 'par': par}
-                pickle.dump(save_results, open(par['save_dir'] + 'analysis.pkl'))
+                pickle.dump(save_results, open(par['save_dir'] + 'analysis.pkl', 'wb'))
 
 
 

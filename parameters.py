@@ -19,8 +19,9 @@ par = {
     'save_dir'              : './savedir/',
     'loss_function'         : 'cross_entropy',    # cross_entropy or MSE
     'learning_rate'         : 0.001,
-    'train_top_down'        : True,
+    'train_top_down'        : False,
     'task'                  : 'mnist',
+    'save_analysis'         : True, 
 
     # Task specs
     'n_tasks'               : 30,
