@@ -4,6 +4,7 @@ import tensorflow.contrib.slim as slim
 from parameters import *
 import stimulus
 import os, time
+import matplotlib.pyplot as plt
 
 # Ignore startup TensorFlow warnings
 os.environ['TF_CPP_MIN_LOG_LEVEL']='2'
@@ -22,27 +23,25 @@ class Autoencoder:
         deco = tf.layers.conv2d_transpose
         data1 = self.y_hat
 
+        k9  = [9, 9]
+        k7  = [7, 7]
 
-        conv1 = conv(data1, 32, [9, 9], strides=1, activation=tf.nn.relu)
-        conv2 = conv(conv1, 32, [9, 9], strides=1, activation=tf.nn.relu)
-        conv3 = conv(conv2, 16, [5, 5], strides=1, activation=tf.nn.relu)
-        conv4 = conv(conv3, 16, [5, 5], strides=1, activation=tf.nn.relu)
-        conv5 = conv(conv4, 8,  [3, 3], strides=1, activation=tf.nn.relu)
-        conv6 = conv(conv5, 8,  [3, 3], strides=1, activation=tf.nn.relu)
+        conv1 = conv(data1, 32, k9, strides=1, activation=tf.nn.relu)
+        conv2 = conv(conv1, 16, k9, strides=1, activation=tf.nn.relu)
+        conv3 = conv(conv2, 16, k7, strides=1, activation=tf.nn.relu)
+        conv4 = conv(conv3, 8,  k7, strides=1, activation=tf.nn.relu)
 
-        x = tf.reshape(conv6, [par['batch_size'],-1])
+        x = tf.reshape(conv4, [par['batch_size'],-1])
 
-        deco1 = deco(conv6, 8,  [3, 3], strides=1, activation=tf.nn.relu)
-        deco2 = deco(deco1, 8,  [3, 3], strides=1, activation=tf.nn.relu)
-        deco3 = deco(deco2, 16, [5, 5], strides=1, activation=tf.nn.relu)
-        deco4 = deco(deco3, 16, [5, 5], strides=1, activation=tf.nn.relu)
-        deco5 = deco(deco4, 32, [9, 9], strides=1, activation=tf.nn.relu)
-        deco6 = deco(deco5, 3,  [9, 9], strides=1, activation=tf.nn.relu)
-        self.y = deco6
+        deco1 = deco(conv4, 8,  k7, strides=1, activation=tf.nn.relu)
+        deco2 = deco(deco1, 16, k7, strides=1, activation=tf.nn.relu)
+        deco3 = deco(deco2, 16, k9, strides=1, activation=tf.nn.relu)
+        deco4 = deco(deco3, 3,  k9, strides=1, activation=tf.nn.relu)
+        self.y = deco4
 
         print('Encoding -', data1.shape)
-        print('Decoding -', x.shape , 'from', conv6.shape)
-        print('Result   -', deco6.shape)
+        print('Decoding -', x.shape , 'from', conv4.shape)
+        print('Result   -', deco4.shape)
 
     def optimize(self):
         self.loss = tf.reduce_mean(tf.square(self.y_hat - self.y))
@@ -68,12 +67,27 @@ def main():
         t_start = time.time()
 
         s = stimulus.Stimulus()
-        print(' Iter. | Task | Loss')
-        print('----------------------------')
         for i in range(1000):
             task_id = np.random.randint(11)
-            stim, _, _ = s.make_batch(task_id, test=False)
-            _, loss = sess.run([model.train_op, model.loss], {x:stim})
+            y_hat, _, _ = s.make_batch(task_id, test=False)
+            _, loss, y = sess.run([model.train_op, model.loss, model.y], {x:y_hat})
+
+            if i%100 == 0:
+                print('\n Iter. | Task | Loss')
+                print('----------------------------')
             print('', str(i).ljust(5), '|', str(task_id).ljust(4), '|', loss)
+
+            if i%20 == 0:
+                f, axarr = plt.subplots(2, 2)
+                axarr[0,0].imshow(y_hat[0])
+                axarr[0,0].set_title('Original 0')
+                axarr[0,1].imshow(y[0])
+                axarr[0,1].set_title('Reconstructed 0')
+                axarr[1,0].imshow(y_hat[1])
+                axarr[1,0].set_title('Original 1')
+                axarr[1,1].imshow(y[1])
+                axarr[1,1].set_title('Reconstructed 1')
+                plt.savefig('./encoder_testing/'+str(i))
+
 
 main()
