@@ -20,16 +20,17 @@ par = {
     'loss_function'         : 'cross_entropy',    # cross_entropy or MSE
     'learning_rate'         : 0.001,
     'train_top_down'        : False,
-    'task'                  : 'mnist',
-    'save_analysis'         : True, 
+    'task'                  : 'cifar',
+    'save_analysis'         : True,
 
     # Task specs
-    'n_tasks'               : 30,
+    'n_tasks'               : 11,
 
     # Network shape
     'n_td'                  : 40,
-    'n_dendrites'           : 5,
-    'layer_dims'            : [28**2, 400, 400, 10],
+    'n_dendrites'           : 3,
+    #'layer_dims'            : [28**2, 2000, 2000, 10], # mnist
+    'layer_dims'            : [1600, 600, 600, 10], #cifar
     'dendrites_final_layer' : False,
 
     # Dropout
@@ -37,8 +38,8 @@ par = {
 
     # Training specs
     'batch_size'            : 1024,
-    'n_train_batches'       : 4000,
-    'n_batches_top_down'    : 40000,
+    'n_train_batches'       : 2000,
+    'n_batches_top_down'    : 20000,
 
     # Omega parameters
     'omega_c'               : 0.1,
@@ -46,7 +47,8 @@ par = {
 
     # Projection of top-down activity
     # Only one can be True
-    'clamp'                 : 'dendrites' # can be either 'dendrites' or 'neurons' or None
+    'clamp'                 : 'dendrites', # can be either 'dendrites' or 'neurons' or None
+    'n_clamp'                : 5
 
 }
 
@@ -64,78 +66,57 @@ def gen_td_cases():
 
     # will create par['n_tasks'] number of tunings, each with exactly n non-zero elements equal to one
     # the distance between all tuned will be d
-    n = 3
-    min_dist = 4
-    tuning = np.zeros([par['n_tasks'], par['n_td']])
-    for i in range(par['n_tasks']):
-        q = np.random.permutation(par['n_td'])[:n]
-        if i == 0:
-            tuning[i, q] = 1
-        else:
-            found_tuning = False
-            while not found_tuning:
-                potential_tuning = np.zeros((par['n_td']))
-                potential_tuning[q] = 1
-                found_tuning = True
-                for j in range(i-1):
-                    pair_dist = np.sum(np.abs(potential_tuning - tuning[j,:]))
-                    if pair_dist < min_dist:
-                        found_tuning = False
-                        q = np.random.permutation(par['n_td'])[:n]
-                        #print(i, pair_dist, q)
-                        break
-            tuning[i, :] = potential_tuning
 
-    return tuning
+    par['td_cases'] = np.zeros((par['n_tasks'], par['n_td']), dtype = np.float32)
+
+    if par['clamp'] == 'neurons':
+        for n in range(par['n_tasks']):
+            par['td_cases'][n, n%par['n_td']] = 1
+
+
+    elif par['clamp'] == 'dendrites':
+        n = 3
+        min_dist = 4
+        for i in range(par['n_tasks']):
+            q = np.random.permutation(par['n_td'])[:n]
+            if i == 0:
+                par['td_cases'][i, q] = 1
+            else:
+                found_tuning = False
+                while not found_tuning:
+                    potential_tuning = np.zeros((par['n_td']))
+                    potential_tuning[q] = 1
+                    found_tuning = True
+                    for j in range(i-1):
+                        pair_dist = np.sum(np.abs(potential_tuning - par['td_cases'][j,:]))
+                        if pair_dist < min_dist:
+                            found_tuning = False
+                            q = np.random.permutation(par['n_td'])[:n]
+                            #print(i, pair_dist, q)
+                            break
+                par['td_cases'][i, :] = potential_tuning
 
 def gen_td_targets():
 
-    td_targets = []
+    par['td_targets'] = []
+    for n in range(par['n_layers']-1):
+        td = np.zeros((par['n_tasks'],par['n_dendrites'], par['layer_dims'][n+1]), dtype = np.float32)
+        for i in range(par['layer_dims'][n+1]):
 
-    if par['clamp'] == 'dendrites':
-
-        for n in range(par['n_layers']-1):
-            td = np.zeros((par['n_tasks'],par['n_dendrites'], par['layer_dims'][n+1]), dtype = np.float32)
-            for i in range(par['layer_dims'][n+1]):
+            if par['clamp'] == 'dendrites':
                 for t in range(0, par['n_tasks'], par['n_dendrites']):
                     q = np.random.permutation(par['n_dendrites'])
                     for j, d in enumerate(q):
-                        td[t+j,d,i] = 1
-                    #print(td[:,:,i])
-                    #quit()
-            td_targets.append(td)
+                        if t+j<par['n_tasks']:
+                            td[t+j,d,i] = 1
 
-    elif par['clamp'] == 'neurons':
-
-        divide_network = 5 # number of groups networks is to be divided into
-
-        for n in range(par['n_layers']-1):
-            td = np.zeros((par['n_tasks'],par['n_dendrites'], par['layer_dims'][n+1]), dtype = np.float32)
-            for i in range(par['layer_dims'][n+1]):
+            elif par['clamp'] == 'neurons':
                 for t in range(par['n_tasks']):
-                    if t%divide_network == i%divide_network:
+                    if t%par['n_td'] == i%par['n_td']:
                         td[t,:,i] = 1
 
-    else:
-        td = []
+        par['td_targets'].append(td)
 
-    return td_targets
-
-    """
-    td_targets = []
-    for task in range(par['n_tasks']):
-        target_layer = []
-        for n in range(par['n_layers']-1):
-            target = np.zeros((par['n_dendrites'], par['layer_dims'][n+1]))
-            for i in range(par['layer_dims'][n+1]):
-                q = np.random.randint(par['n_dendrites'])
-                target[q,i] = 1
-            target_layer.append(target)
-        td_targets.append(target_layer)
-
-
-    return td_targets
-    """
 
 def update_dependencies():
     """
@@ -143,8 +124,8 @@ def update_dependencies():
     """
 
     par['n_layers'] = len(par['layer_dims'])
-    par['td_cases'] = gen_td_cases()
-    par['td_targets'] = gen_td_targets()
+    gen_td_cases()
+    gen_td_targets()
 
 
 def update_parameters(updates):

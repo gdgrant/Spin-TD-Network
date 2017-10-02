@@ -37,12 +37,14 @@ class Model:
             conv1 = tf.layers.conv2d(inputs=self.input_data,filters=32,kernel_size=[3, 3], strides=1,activation=tf.nn.relu)
             conv2 = tf.layers.conv2d(inputs=conv1,filters=32,kernel_size=[3, 3], strides=1,activation=tf.nn.relu)
             pool2 = tf.layers.max_pooling2d(inputs=conv2, pool_size=[2, 2], strides=2)
-            pool2 = tf.nn.dropout(pool2, tf.constant(0.5,dtype=np.float32)+droput_pct/2)
+            pool2 = tf.nn.dropout(pool2, tf.constant(0.5,dtype=np.float32)+self.droput_keep_pct/2)
             conv3 = tf.layers.conv2d(inputs=pool2,filters=64,kernel_size=[3, 3],strides=1,activation=tf.nn.relu)
             conv4 = tf.layers.conv2d(inputs=conv3,filters=64,kernel_size=[3, 3],strides=1,activation=tf.nn.relu)
             pool4 = tf.layers.max_pooling2d(inputs=conv4, pool_size=[2, 2], strides=2)
-            pool4 = tf.nn.dropout(pool4, tf.constant(0.5,dtype=np.float32)+droput_pct/2)
-            self.x = tf.reshape(pool4,[-1, 3*1024])
+            pool4 = tf.nn.dropout(pool4, tf.constant(0.5,dtype=np.float32)+self.droput_keep_pct/2)
+            self.x = tf.reshape(pool4,[par['batch_size'], -1])
+
+
         elif par['task'] == 'mnist':
             self.x = self.input_data
 
@@ -54,7 +56,11 @@ class Model:
                     W = tf.get_variable('W', initializer = tf.random_uniform([par['layer_dims'][n],par['n_dendrites'],par['layer_dims'][n+1]], -1.0/np.sqrt(par['layer_dims'][n]), 1.0/np.sqrt(par['layer_dims'][n])), trainable = True)
                     b = tf.get_variable('b', initializer = tf.zeros([1,par['n_dendrites'],par['layer_dims'][n+1]]), trainable = True)
                     W_td = tf.get_variable('W_td', initializer = par['W_td0'][n], trainable = False)
-                    self.td_gating.append(tf.nn.softmax(tf.tensordot(self.td_data, W_td, ([1],[0])), dim = 1))
+
+                    if par['clamp'] == 'dendrites':
+                        self.td_gating.append(tf.nn.softmax(tf.tensordot(self.td_data, W_td, ([1],[0])), dim = 1))
+                    elif par['clamp'] == 'neurons':
+                        self.td_gating.append(tf.tensordot(self.td_data, W_td, ([1],[0])))
                 else:
                     # final layer -> no dendrites
                     W = tf.get_variable('W', initializer = tf.random_uniform([par['layer_dims'][n],par['layer_dims'][n+1]], -1.0/np.sqrt(par['layer_dims'][n]), 1.0/np.sqrt(par['layer_dims'][n])), trainable = True)
@@ -63,15 +69,17 @@ class Model:
 
                 if n < par['n_layers']-2:
                     dend_activity = tf.nn.relu(tf.tensordot(self.x, W, ([1],[0]))  + b)
-                    self.x = tf.nn.dropout(tf.reduce_sum(dend_activity*self.td_gating[-1], axis=1), self.droput_keep_pct)
+                    print('dend_activity', dend_activity)
+                    self.x = tf.nn.dropout(tf.reduce_sum(dend_activity*self.td_gating[n], axis=1), self.droput_keep_pct)
+
                 else:
                     if par['dendrites_final_layer']:
-                        dend_activity = tf.tensordot(self.x, W, ([1],[0]))  + b
-                        self.y = tf.nn.softmax(tf.reduce_sum(dend_activity*self.td_gating[-1], axis=1), dim = 1)
+                        dend_activity = tf.tensordot(self.x, W, ([1],[0])) + b
+                        self.y = tf.nn.softmax(tf.reduce_sum(dend_activity*self.td_gating[n], axis=1), dim = 1)
+                        print('Y',self.y)
                     else:
-                        #print('x', self.x)
-                        #print('W', W)
                         self.y = tf.nn.softmax(tf.matmul(self.x,W) + b, dim = 1)
+                        print('Y',self.y)
 
 
 
@@ -140,10 +148,11 @@ class Model:
                 # fully connected layer
                 layer_num = int([s for s in var.op.name if s.isdigit()][0])
                 var_dim = var.get_shape()[0].value
-                if layer_num < par['n_layers']-2 or par['dendrites_final_layer']:
+                if par['clamp'] == 'dendrites' and (layer_num < par['n_layers']-2 or par['dendrites_final_layer']):
                     td_gating = tf.tile(tf.reduce_mean(self.td_gating[layer_num], axis=0, keep_dims = True), [var_dim, 1, 1])
                 else:
                     td_gating = tf.constant(np.float32(1))
+
                 gate = tf.constant(np.float32(1))
 
             self.capped_gvs.append((tf.clip_by_norm(gate*td_gating*grad, 1), var))
@@ -168,8 +177,75 @@ class Model:
 
 def main():
 
+    determine_top_down_weights()
+
+    print('\nRunning model.\n')
+
+    # Reset TensorFlow graph
+    tf.reset_default_graph()
+
+    # Create placeholders for the model
+    # input_data, td_data, target_data, learning_rate, stim_train
+    if par['task'] == 'mnist':
+        x  = tf.placeholder(tf.float32, [par['batch_size'], par['layer_dims'][0]], 'stim')
+    elif par['task'] == 'cifar':
+        x  = tf.placeholder(tf.float32, [par['batch_size'], 32, 32, 3], 'stim')
+    td  = tf.placeholder(tf.float32, [par['batch_size'], par['n_td']], 'TD')
+    y   = tf.placeholder(tf.float32, [ par['batch_size'], par['layer_dims'][-1]], 'out')
+    droput_keep_pct = tf.placeholder(tf.float32, [] , 'dropout')
+    gate_conv = tf.placeholder(tf.float32, [] , 'dropout')
+
+    stim = stimulus.Stimulus()
+
+
+    with tf.Session() as sess:
+        model   = Model(x, td, y, droput_keep_pct, gate_conv)
+        sess.run(tf.global_variables_initializer())
+        t_start = time.time()
+
+        for task in range(par['n_tasks']):
+
+            gate_conv = 1 if (par['task'] == 'mnist' or task == 0) else 0
+
+            for i in range(par['n_train_batches']):
+
+                stim_in, y_hat, td_in = stim.make_batch(task, test = False)
+                #print(stim_in.shape, y_hat.shape, td_in.shape, np.mean(td_in,axis=0))
+
+                if par['omega_c'] > 0:
+                    loss,_,_,capped_gvs, td_gating = sess.run([model.task_loss, model.train_op,model.update_small_omega, model.capped_gvs, model.td_gating], \
+                        feed_dict={x:stim_in, td:td_in, y:y_hat, droput_keep_pct:par['keep_pct']})
+                else:
+                    sess.run(model.train_op, feed_dict={x:stim_in, td:td_in, y:y_hat, droput_keep_pct: par['keep_pct']})
+
+                if i//100 == i/100:
+                    print(i, loss)
+
+            if par['omega_c'] > 0:
+                sess.run(model.update_big_omega,feed_dict={td:td_in})
+                sess.run(model.reset_small_omega)
+                big_omegas = sess.run(model.big_omega_var)
+
+
+            accuracy = np.zeros((task+1))
+            for test_task in range(task+1):
+                stim_in, y_hat, td_in = stim.make_batch(test_task, test = True)
+                accuracy[test_task] = sess.run(model.accuracy, feed_dict={x:stim_in, td:td_in, y:y_hat, droput_keep_pct:1.0})
+            print('Task ',task, ' Mean ', np.mean(accuracy), ' First ', accuracy[0], ' Last ', accuracy[-1])
+
+            if par['save_analysis']:
+                save_results = {'task': task, 'accuracy': accuracy, 'big_omegas': big_omegas, 'par': par}
+                pickle.dump(save_results, open(par['save_dir'] + 'analysis.pkl', 'wb'))
+
+
+
+    print('\nModel execution complete.')
+
+def determine_top_down_weights():
+
     # file to store/load top-down weights
-    td_weight_fn = par['save_dir'] + 'top_down_weights.pkl'
+    td_weight_fn = par['save_dir'] + 'top_down_weights_' + par['clamp'] + '_' + par['task'] + '.pkl'
+    #td_weight_fn = par['save_dir'] + 'top_down_weights' + '.pkl'
 
     if par['train_top_down']:
 
@@ -202,59 +278,6 @@ def main():
         top_down_results = pickle.load(open(td_weight_fn,'rb'))
         par['W_td0'] = top_down_results['W_td']
         par['td_cases']  = top_down_results['td_cases']
-
-    print('\nRunning model.\n')
-
-    # Reset TensorFlow graph
-    tf.reset_default_graph()
-
-    # Create placeholders for the model
-    # input_data, td_data, target_data, learning_rate, stim_train
-    x   = tf.placeholder(tf.float32, [par['batch_size'], par['layer_dims'][0]], 'stim')
-    td  = tf.placeholder(tf.float32, [par['batch_size'], par['n_td']], 'TD')
-    y   = tf.placeholder(tf.float32, [ par['batch_size'], par['layer_dims'][-1]], 'out')
-    droput_keep_pct = tf.placeholder(tf.float32, [] , 'dropout')
-
-    stim = stimulus.Stimulus()
-
-
-    with tf.Session() as sess:
-        model   = Model(x, td, y, droput_keep_pct)
-        sess.run(tf.global_variables_initializer())
-        t_start = time.time()
-
-        for task in range(par['n_tasks']):
-            for i in range(par['n_train_batches']):
-
-                stim_in, td_in, y_hat = stim.make_batch(task, test = False)
-                if par['omega_c'] > 0:
-                    loss,_,_,capped_gvs, td_gating = sess.run([model.task_loss, model.train_op,model.update_small_omega, model.capped_gvs, model.td_gating], \
-                        feed_dict={x:stim_in, td:td_in, y:y_hat, droput_keep_pct:par['keep_pct']})
-                else:
-                    sess.run(model.train_op, feed_dict={x:stim_in, td:td_in, y:y_hat, droput_keep_pct: par['keep_pct']})
-
-                if i//100 == i/100:
-                    print(i, loss)
-
-            if par['omega_c'] > 0:
-                sess.run(model.update_big_omega,feed_dict={td:td_in})
-                sess.run(model.reset_small_omega)
-                big_omegas = sess.run(model.big_omega_var)
-
-
-            accuracy = np.zeros((task+1))
-            for test_task in range(task+1):
-                stim_in, td_in, y_hat = stim.make_batch(test_task, test = True)
-                accuracy[test_task] = sess.run(model.accuracy, feed_dict={x:stim_in, td:td_in, y:y_hat, droput_keep_pct:1.0})
-            print('Task ',task, ' Mean ', np.mean(accuracy), ' First ', accuracy[0], ' Last ', accuracy[-1])
-
-            if par['save_analysis']:
-                save_results = {'task': task, 'accuracy': accuracy, 'big_omegas': big_omegas, 'par': par}
-                pickle.dump(save_results, open(par['save_dir'] + 'analysis.pkl', 'wb'))
-
-
-
-    print('\nModel execution complete.')
 
 try:
     main()
