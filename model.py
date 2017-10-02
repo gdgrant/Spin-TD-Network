@@ -140,20 +140,20 @@ class Model:
         self.capped_gvs = []
         for grad, var in gradients_with_aux:
 
-            if var.op.name.find('Conv') == 0:
+            if var.op.name.find('conv') == 0:
                 # convolutional layer
-                gate = self.conv_gate if var.op.name.find('Conv') == 0 else tf.constant(np.float32(1))
+                gate = self.gate_conv
                 td_gating = tf.constant(np.float32(1))
+
             else:
                 # fully connected layer
+                gate = tf.constant(np.float32(1))
                 layer_num = int([s for s in var.op.name if s.isdigit()][0])
                 var_dim = var.get_shape()[0].value
                 if par['clamp'] == 'dendrites' and (layer_num < par['n_layers']-2 or par['dendrites_final_layer']):
                     td_gating = tf.tile(tf.reduce_mean(self.td_gating[layer_num], axis=0, keep_dims = True), [var_dim, 1, 1])
                 else:
                     td_gating = tf.constant(np.float32(1))
-
-                gate = tf.constant(np.float32(1))
 
             self.capped_gvs.append((tf.clip_by_norm(gate*td_gating*grad, 1), var))
 
@@ -193,7 +193,7 @@ def main():
     td  = tf.placeholder(tf.float32, [par['batch_size'], par['n_td']], 'TD')
     y   = tf.placeholder(tf.float32, [ par['batch_size'], par['layer_dims'][-1]], 'out')
     droput_keep_pct = tf.placeholder(tf.float32, [] , 'dropout')
-    gate_conv = tf.placeholder(tf.float32, [] , 'dropout')
+    gate_conv = tf.placeholder(tf.float32, [] , 'gate_conv')
 
     stim = stimulus.Stimulus()
 
@@ -205,18 +205,20 @@ def main():
 
         for task in range(par['n_tasks']):
 
-            gate_conv = 1 if (par['task'] == 'mnist' or task == 0) else 0
+            gate = 1 if (par['task'] == 'mnist' or task == 0) else 0
 
             for i in range(par['n_train_batches']):
 
                 stim_in, y_hat, td_in = stim.make_batch(task, test = False)
+
+                #stim_in + np.random.normal(0,0.25,size=stim_in.shape)
                 #print(stim_in.shape, y_hat.shape, td_in.shape, np.mean(td_in,axis=0))
 
                 if par['omega_c'] > 0:
                     loss,_,_,capped_gvs, td_gating = sess.run([model.task_loss, model.train_op,model.update_small_omega, model.capped_gvs, model.td_gating], \
-                        feed_dict={x:stim_in, td:td_in, y:y_hat, droput_keep_pct:par['keep_pct']})
+                        feed_dict={x:stim_in, td:td_in, y:y_hat, droput_keep_pct:par['keep_pct'], gate_conv: gate})
                 else:
-                    sess.run(model.train_op, feed_dict={x:stim_in, td:td_in, y:y_hat, droput_keep_pct: par['keep_pct']})
+                    sess.run(model.train_op, feed_dict={x:stim_in, td:td_in, y:y_hat, droput_keep_pct: par['keep_pct'], gate_conv: gate})
 
                 if i//100 == i/100:
                     print(i, loss)
@@ -230,7 +232,7 @@ def main():
             accuracy = np.zeros((task+1))
             for test_task in range(task+1):
                 stim_in, y_hat, td_in = stim.make_batch(test_task, test = True)
-                accuracy[test_task] = sess.run(model.accuracy, feed_dict={x:stim_in, td:td_in, y:y_hat, droput_keep_pct:1.0})
+                accuracy[test_task] = sess.run(model.accuracy, feed_dict={x:stim_in, td:td_in, y:y_hat, droput_keep_pct:1.0, gate_conv: gate})
             print('Task ',task, ' Mean ', np.mean(accuracy), ' First ', accuracy[0], ' Last ', accuracy[-1])
 
             if par['save_analysis']:
