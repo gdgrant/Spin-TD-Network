@@ -223,25 +223,54 @@ def main():
                 if i//100 == i/100:
                     print(i, loss)
 
-            if par['omega_c'] > 0:
+            # if training on the cifar task, don't update omegas on the 0th task
+            if par['omega_c'] > 0 and (par['task']=='mnist' or (par['task']=='cifar' and task > 0)):
                 sess.run(model.update_big_omega,feed_dict={td:td_in})
                 sess.run(model.reset_small_omega)
                 big_omegas = sess.run(model.big_omega_var)
 
+            if par['task']=='mnist':
+                accuracy = np.zeros((task+1))
+                for test_task in range(task+1):
+                    stim_in, y_hat, td_in = stim.make_batch(task, test = True)
+                    accuracy[test_task] = sess.run(model.accuracy, feed_dict={x:stim_in, td:td_in, y:y_hat, droput_keep_pct:1.0, gate_conv: gate})
+            elif par['task']=='cifar' and task > 0:
+                accuracy = np.zeros((task))
+                for test_task in range(1,task+1):
+                    stim_in, y_hat, td_in = stim.make_batch(task, test = True)
+                    accuracy[test_task-1] = sess.run(model.accuracy, feed_dict={x:stim_in, td:td_in, y:y_hat, droput_keep_pct:1.0, gate_conv: gate})
+            else:
+                accuracy = [-1]
 
-            accuracy = np.zeros((task+1))
-            for test_task in range(task+1):
-                stim_in, y_hat, td_in = stim.make_batch(test_task, test = True)
-                accuracy[test_task] = sess.run(model.accuracy, feed_dict={x:stim_in, td:td_in, y:y_hat, droput_keep_pct:1.0, gate_conv: gate})
             print('Task ',task, ' Mean ', np.mean(accuracy), ' First ', accuracy[0], ' Last ', accuracy[-1])
 
-            if par['save_analysis']:
+            if par['save_analysis'] and (par['task']=='mnist' or (par['task']=='cifar' and task > 0)):
                 save_results = {'task': task, 'accuracy': accuracy, 'big_omegas': big_omegas, 'par': par}
                 pickle.dump(save_results, open(par['save_dir'] + 'analysis.pkl', 'wb'))
 
 
 
     print('\nModel execution complete.')
+
+def calculate_task_accuracy(task, stim, sess, model):
+
+    if par['task']=='mnist':
+        accuracy = np.zeros((task+1))
+        for test_task in range(task+1):
+            stim_in, y_hat, td_in = stim.make_batch(task, test = True)
+            accuracy[test_task] = sess.run(model.accuracy, feed_dict={x:stim_in, td:td_in, y:y_hat, droput_keep_pct:1.0, gate_conv: gate})
+    elif par['task']=='cifar' and task > 0:
+        accuracy = np.zeros((task))
+        for test_task in range(1,task+1):
+            stim_in, y_hat, td_in = stim.make_batch(task, test = True)
+            accuracy[test_task-1] = sess.run(model.accuracy, feed_dict={x:stim_in, td:td_in, y:y_hat, droput_keep_pct:1.0, gate_conv: gate})
+    else:
+        return -1
+
+    print('Task ',task, ' Mean ', np.mean(accuracy), ' First ', accuracy[0], ' Last ', accuracy[-1])
+    return accuracy
+
+
 
 def determine_top_down_weights():
 
