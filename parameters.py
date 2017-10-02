@@ -38,7 +38,7 @@ par = {
 
     # Training specs
     'batch_size'            : 1024,
-    'n_train_batches'       : 2000,
+    'n_train_batches'       : 1500,
     'n_batches_top_down'    : 20000,
 
     # Omega parameters
@@ -56,12 +56,6 @@ par = {
 ### Dependent parameters ###
 ############################
 
-def generate_init_weight(dims):
-    n = np.float32(np.random.gamma(shape=0.25, scale=1.0, size=dims))
-    n *= (np.random.rand(*dims) < par['connection_prob'])
-    return np.float32(n)
-
-
 def gen_td_cases():
 
     # will create par['n_tasks'] number of tunings, each with exactly n non-zero elements equal to one
@@ -75,8 +69,11 @@ def gen_td_cases():
 
 
     elif par['clamp'] == 'dendrites':
+
+        # these params below work but no real rationale why I chose them
         n = 3
         min_dist = 4
+
         for i in range(par['n_tasks']):
             q = np.random.permutation(par['n_td'])[:n]
             if i == 0:
