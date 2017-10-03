@@ -139,6 +139,8 @@ class Stimulus:
         else:
             print('Unrecognized task')
 
+        if par['task'] == 'cifar' and task_num>0:
+            task_num -= 1 # because we're not evaluating accuracy on  task 0
         top_down = np.tile(np.reshape(par['td_cases'][task_num, :],(1,-1)),(par['batch_size'],1))
 
         return batch_data, batch_labels, top_down
