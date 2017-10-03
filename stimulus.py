@@ -141,4 +141,4 @@ class Stimulus:
 
         top_down = np.tile(np.reshape(par['td_cases'][task_num, :],(1,-1)),(par['batch_size'],1))
 
-        return batch_data/255, batch_labels, top_down
+        return batch_data, batch_labels, top_down
