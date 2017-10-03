@@ -14,7 +14,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL']='2'
 ###################
 class Model:
 
-    def __init__(self, input_data, td_data, target_data, droput_keep_pct, gate_conv = 1):
+    def __init__(self, input_data, td_data, target_data, droput_keep_pct, learning_rate, gate_conv = 1):
 
         # Load the input activity, the target data, and the training mask
         # for this batch of trials
@@ -22,6 +22,7 @@ class Model:
         self.td_data            = td_data
         self.target_data        = target_data
         self.droput_keep_pct    = droput_keep_pct
+        self.learning_rate      = learning_rate
         self.gate_conv          = gate_conv # Only for CIFAR; used to gate changes to convolution weights after first task
 
         # Build the TensorFlow graph
@@ -34,6 +35,7 @@ class Model:
     def run_model(self):
 
         if par['task'] == 'cifar':
+            print('INPUT', self.input_data)
             conv1 = tf.layers.conv2d(inputs=self.input_data,filters=32,kernel_size=[3, 3], strides=1,activation=tf.nn.relu)
             conv2 = tf.layers.conv2d(inputs=conv1,filters=32,kernel_size=[3, 3], strides=1,activation=tf.nn.relu)
             pool2 = tf.layers.max_pooling2d(inputs=conv2, pool_size=[2, 2], strides=2)
@@ -42,6 +44,7 @@ class Model:
             conv4 = tf.layers.conv2d(inputs=conv3,filters=64,kernel_size=[3, 3],strides=1,activation=tf.nn.relu)
             pool4 = tf.layers.max_pooling2d(inputs=conv4, pool_size=[2, 2], strides=2)
             pool4 = tf.nn.dropout(pool4, tf.constant(0.5,dtype=np.float32)+self.droput_keep_pct/2)
+            print('POOL4', pool4)
             self.x = tf.reshape(pool4,[par['batch_size'], -1])
 
 
@@ -86,10 +89,11 @@ class Model:
     def optimize(self):
 
         epsilon = 1e-4
-        optimizer = tf.train.AdamOptimizer(learning_rate = par['learning_rate'])
+        optimizer = tf.train.AdamOptimizer(learning_rate = self.learning_rate)
 
         # Use all trainable variables, except those in the convolutional layers
-        variables = [var for var in tf.trainable_variables() if not var.op.name.find('Conv')==0]
+        #variables = [var for var in tf.trainable_variables() if not var.op.name.find('conv')==0]
+        variables = [var for var in tf.trainable_variables()]
         print('variables ', variables)
         small_omega_var = {}
         previous_weights_mu_minus_1 = {}
@@ -162,7 +166,7 @@ class Model:
         if par['omega_c'] > 0:
             for i, (grad,var) in enumerate(gradients_with_aux):
                 print(i,var.op.name)
-                update_small_omega_ops.append( tf.assign_add( small_omega_var[var.op.name], par['learning_rate']*self.capped_gvs[i][0]*gradients[i][0] ) )
+                update_small_omega_ops.append( tf.assign_add( small_omega_var[var.op.name], self.learning_rate*self.capped_gvs[i][0]*gradients[i][0] ) )
                 #for j in range(n_tasks):
                 #update_small_omega_ops.append( tf.assign_add( small_omega_var[var.op.name, j], task_vector[j]*learning_rate*capped_gvs[i][0]*gradients[i][0] ) ) # small_omega -= delta_weight(t)*gradient(t)
 
@@ -193,32 +197,40 @@ def main():
     td  = tf.placeholder(tf.float32, [par['batch_size'], par['n_td']], 'TD')
     y   = tf.placeholder(tf.float32, [ par['batch_size'], par['layer_dims'][-1]], 'out')
     droput_keep_pct = tf.placeholder(tf.float32, [] , 'dropout')
+    learning_rate = tf.placeholder(tf.float32, [] , 'dropout')
     gate_conv = tf.placeholder(tf.float32, [] , 'gate_conv')
 
     stim = stimulus.Stimulus()
 
 
     with tf.Session() as sess:
-        model   = Model(x, td, y, droput_keep_pct, gate_conv)
+        model   = Model(x, td, y, droput_keep_pct, learning_rate, gate_conv)
         sess.run(tf.global_variables_initializer())
         t_start = time.time()
 
         for task in range(par['n_tasks']):
 
             gate = 1 if (par['task'] == 'mnist' or task == 0) else 0
+            keep_pct = par['keep_pct'] if (par['task'] == 'mnist' or task > 0) else 0.5
+            #gate = 1
 
             for i in range(par['n_train_batches']):
 
                 stim_in, y_hat, td_in = stim.make_batch(task, test = False)
 
-                #stim_in + np.random.normal(0,0.25,size=stim_in.shape)
+                # learning rate is set to zero for first 100 epochs of cifar task
+                # this is to prevent interference from AdamOptimizer
+                lr = par['learning_rate'] if (par['task']=='mnist' or (par['task']=='cifar' and i > 100)) else 0
+
+                #stim_in += np.random.normal(0,0.2,size=stim_in.shape)
                 #print(stim_in.shape, y_hat.shape, td_in.shape, np.mean(td_in,axis=0))
 
                 if par['omega_c'] > 0:
                     loss,_,_,capped_gvs, td_gating = sess.run([model.task_loss, model.train_op,model.update_small_omega, model.capped_gvs, model.td_gating], \
-                        feed_dict={x:stim_in, td:td_in, y:y_hat, droput_keep_pct:par['keep_pct'], gate_conv: gate})
+                        feed_dict={x:stim_in, td:td_in, y:y_hat, droput_keep_pct:keep_pct, learning_rate: lr, gate_conv: gate})
                 else:
-                    sess.run(model.train_op, feed_dict={x:stim_in, td:td_in, y:y_hat, droput_keep_pct: par['keep_pct'], gate_conv: gate})
+                    sess.run(model.train_op, feed_dict={x:stim_in, td:td_in, y:y_hat, droput_keep_pct: par['keep_pct'], \
+                        learning_rate: lr, gate_conv: gate})
 
                 if i//100 == i/100:
                     print(i, loss)
@@ -232,12 +244,12 @@ def main():
             if par['task']=='mnist':
                 accuracy = np.zeros((task+1))
                 for test_task in range(task+1):
-                    stim_in, y_hat, td_in = stim.make_batch(task, test = True)
+                    stim_in, y_hat, td_in = stim.make_batch(test_task, test = True)
                     accuracy[test_task] = sess.run(model.accuracy, feed_dict={x:stim_in, td:td_in, y:y_hat, droput_keep_pct:1.0, gate_conv: gate})
             elif par['task']=='cifar' and task > 0:
                 accuracy = np.zeros((task))
                 for test_task in range(1,task+1):
-                    stim_in, y_hat, td_in = stim.make_batch(task, test = True)
+                    stim_in, y_hat, td_in = stim.make_batch(test_task, test = True)
                     accuracy[test_task-1] = sess.run(model.accuracy, feed_dict={x:stim_in, td:td_in, y:y_hat, droput_keep_pct:1.0, gate_conv: gate})
             else:
                 accuracy = [-1]
@@ -275,7 +287,7 @@ def calculate_task_accuracy(task, stim, sess, model):
 def determine_top_down_weights():
 
     # file to store/load top-down weights
-    td_weight_fn = par['save_dir'] + 'top_down_weights_' + par['clamp'] + '_' + par['task'] + '.pkl'
+    td_weight_fn = par['save_dir'] + 'top_down_weights_' + par['clamp'] + '_' + par['task'] + '_dfl_.pkl'
     #td_weight_fn = par['save_dir'] + 'top_down_weights' + '.pkl'
 
     if par['train_top_down']:
