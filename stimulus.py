@@ -72,6 +72,7 @@ class Stimulus:
         labels = np.reshape(np.array(x['fine_labels'])+10,(-1,1))
         self.cifar_test_labels = np.vstack((self.cifar_test_labels, labels))
 
+
     def find_cifar_indices(self):
 
         self.cifar_train_ind = []
@@ -96,11 +97,11 @@ class Stimulus:
             if test:
                 k = int(self.cifar_test_labels[ind[q[i]]] - task_num*self.cifar_labels_per_task)
                 batch_labels[i, k] = 1
-                batch_data[i, :] = np.reshape(self.cifar_test_images[ind[q[i]], :],(1,32,32,3))
+                batch_data[i, :] = np.float32(np.reshape(self.cifar_test_images[ind[q[i]], :],(1,32,32,3)))/255
             else:
                 k = int(self.cifar_train_labels[ind[q[i]]] - task_num*self.cifar_labels_per_task)
                 batch_labels[i, k] = 1
-                batch_data[i, :] = np.reshape(self.cifar_train_images[ind[q[i]], :],(1,32,32,3))
+                batch_data[i, :] = np.float32(np.reshape(self.cifar_train_images[ind[q[i]], :],(1,32,32,3)))/255
 
         return batch_data, batch_labels
 
