@@ -34,8 +34,8 @@ class Stimulus:
         self.num_test_examples  = len(self.mnist_test_images)
         self.num_outputs        = 10
 
-        self.mnist_train_images = np.array(self.mnist_train_images)/255
-        self.mnist_test_images = np.array(self.mnist_test_images)/255
+        self.mnist_train_images = np.array(self.mnist_train_images)
+        self.mnist_test_images = np.array(self.mnist_test_images)
 
         self.mnist_permutation = []
         for t in range(par['n_tasks']):
@@ -140,4 +140,4 @@ class Stimulus:
 
         top_down = np.tile(np.reshape(par['td_cases'][task_num, :],(1,-1)),(par['batch_size'],1))
 
-        return batch_data, batch_labels, top_down
+        return batch_data/255, batch_labels, top_down
