@@ -28,21 +28,21 @@ par = {
 
     # Network shape
     'n_td'                  : 40,
-    'n_dendrites'           : 3,
+    'n_dendrites'           : 2,
     #'layer_dims'            : [28**2, 2000, 2000, 10], # mnist
-    'layer_dims'            : [1600, 600, 600, 10], #cifar
-    'dendrites_final_layer' : False,
+    'layer_dims'            : [1600, 1000, 1000, 10], #cifar
+    'dendrites_final_layer' : True,
 
     # Dropout
-    'keep_pct'              : 1.0,
+    'keep_pct'              : 0.5,
 
     # Training specs
     'batch_size'            : 1024,
-    'n_train_batches'       : 1500,
+    'n_train_batches'       : 1000,
     'n_batches_top_down'    : 20000,
 
     # Omega parameters
-    'omega_c'               : 0.1,
+    'omega_c'               : 0.2,
     'omega_xi'              : 0.1,
 
     # Projection of top-down activity
