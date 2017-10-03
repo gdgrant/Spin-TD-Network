@@ -50,26 +50,27 @@ class Stimulus:
         Load CIFAR-10 data
         """
         for i in range(5):
-            x =  pickle.load(open(self.cifar10_dir + 'data_batch_' + str(i+1),'rb'), encoding='latin1')
-            self.cifar_train_images = np.vstack((self.cifar_train_images, x['data'])) if self.cifar_train_images.size else  x['data']
-            labels = np.reshape(np.array(x['labels']),(-1,1))
+            x =  pickle.load(open(self.cifar10_dir + 'data_batch_' + str(i+1),'rb'), encoding='bytes')
+            self.cifar_train_images = np.vstack((self.cifar_train_images, x[b'data'])) if self.cifar_train_images.size else  x[b'data']
+            labels = np.reshape(np.array(x[b'labels']),(-1,1))
             self.cifar_train_labels = np.vstack((self.cifar_train_labels, labels))  if self.cifar_train_labels.size else labels
 
-        x =  pickle.load(open(self.cifar10_dir + 'test_batch','rb'), encoding='latin1')
-        self.cifar_test_images = np.array(x['data'])
-        self.cifar_test_labels = np.reshape(np.array(x['labels']),(-1,1))
+
+        x =  pickle.load(open(self.cifar10_dir + 'test_batch','rb'), encoding='bytes')
+        self.cifar_test_images = np.array(x[b'data'])
+        self.cifar_test_labels = np.reshape(np.array(x[b'labels']),(-1,1))
 
         """
         Load CIFAR-100 data
         """
-        x =  pickle.load(open(self.cifar100_dir + 'train','rb'), encoding='latin1')
-        self.cifar_train_images = np.vstack((self.cifar_train_images, x['data']))
-        labels = np.reshape(np.array(x['fine_labels'])+10,(-1,1))
+        x =  pickle.load(open(self.cifar100_dir + 'train','rb'), encoding='bytes')
+        self.cifar_train_images = np.vstack((self.cifar_train_images, x[b'data']))
+        labels = np.reshape(np.array(x[b'fine_labels'])+10,(-1,1))
         self.cifar_train_labels = np.vstack((self.cifar_train_labels, labels))
 
-        x =  pickle.load(open(self.cifar100_dir + 'test','rb'), encoding='latin1')
-        self.cifar_test_images = np.vstack((self.cifar_test_images, x['data']))
-        labels = np.reshape(np.array(x['fine_labels'])+10,(-1,1))
+        x =  pickle.load(open(self.cifar100_dir + 'test','rb'), encoding='bytes')
+        self.cifar_test_images = np.vstack((self.cifar_test_images, x[b'data']))
+        labels = np.reshape(np.array(x[b'fine_labels'])+10,(-1,1))
         self.cifar_test_labels = np.vstack((self.cifar_test_labels, labels))
 
 
@@ -97,11 +98,11 @@ class Stimulus:
             if test:
                 k = int(self.cifar_test_labels[ind[q[i]]] - task_num*self.cifar_labels_per_task)
                 batch_labels[i, k] = 1
-                batch_data[i, :] = np.float32(np.reshape(self.cifar_test_images[ind[q[i]], :],(1,32,32,3)))/255
+                batch_data[i, :] = np.float32(np.reshape(self.cifar_test_images[ind[q[i]], :],(1,32,32,3), order='F'))/255
             else:
                 k = int(self.cifar_train_labels[ind[q[i]]] - task_num*self.cifar_labels_per_task)
                 batch_labels[i, k] = 1
-                batch_data[i, :] = np.float32(np.reshape(self.cifar_train_images[ind[q[i]], :],(1,32,32,3)))/255
+                batch_data[i, :] = np.float32(np.reshape(self.cifar_train_images[ind[q[i]], :],(1,32,32,3), order='F'))/255
 
         return batch_data, batch_labels
 
