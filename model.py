@@ -6,6 +6,7 @@ import os, time
 import pickle
 import top_down
 
+
 # Ignore startup TensorFlow warnings
 os.environ['TF_CPP_MIN_LOG_LEVEL']='2'
 
