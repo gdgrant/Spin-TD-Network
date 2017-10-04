@@ -36,16 +36,32 @@ class Model:
 
         if par['task'] == 'cifar':
             print('INPUT', self.input_data)
-            conv1 = tf.layers.conv2d(inputs=self.input_data,filters=32,kernel_size=[3, 3], strides=1,activation=tf.nn.relu)
+
+            conv_weights = pickle.load(open('./encoder_testing/conv_weights.pkl','rb'))
+            conv1 = tf.nn.relu(tf.nn.conv2d(input=self.input_data, filter=conv_weights['conv2d/kernel'],strides=[1,1,1,1],padding='SAME'))
+            conv2 = tf.nn.relu(tf.nn.conv2d(input=conv1, filter=conv_weights['conv2d_1/kernel'],strides=[1,1,1,1],padding='SAME'))
+            conv2 = tf.layers.max_pooling2d(inputs=conv2, pool_size=[2, 2], strides=2)
+            print('conv2',conv2)
+            conv3 = tf.nn.relu(tf.nn.conv2d(input=conv2, filter=conv_weights['conv2d_2/kernel'],strides=[1,1,1,1],padding='SAME'))
+            conv4 = tf.nn.relu(tf.nn.conv2d(input=conv3, filter=conv_weights['conv2d_3/kernel'],strides=[1,1,1,1],padding='SAME'))
+            conv4 = tf.layers.max_pooling2d(inputs=conv4, pool_size=[2, 2], strides=2)
+            print('conv4',conv4)
+            #conv5 = tf.nn.relu(tf.nn.conv2d(input=conv4, filter=conv_weights['conv2d_4/kernel'],strides=[1,1,1,1],padding='SAME'))
+            #conv6 = tf.nn.relu(tf.nn.conv2d(input=conv5, filter=conv_weights['conv2d_5/kernel'],strides=[1,1,1,1],padding='SAME'))
+            #conv6 = tf.layers.max_pooling2d(inputs=conv6, pool_size=[2, 2], strides=2)
+            #print('conv6 ', conv6)
+            """
+            #conv1 = tf.layers.conv2d(inputs=self.input_data,filters=32,kernel_size=[3, 3], strides=1,activation=tf.nn.relu)
             conv2 = tf.layers.conv2d(inputs=conv1,filters=32,kernel_size=[3, 3], strides=1,activation=tf.nn.relu)
-            pool2 = tf.layers.max_pooling2d(inputs=conv2, pool_size=[2, 2], strides=2)
+            $pool2 = tf.layers.max_pooling2d(inputs=conv2, pool_size=[2, 2], strides=2)
             pool2 = tf.nn.dropout(pool2, tf.constant(0.5,dtype=np.float32)+self.droput_keep_pct/2)
             conv3 = tf.layers.conv2d(inputs=pool2,filters=64,kernel_size=[3, 3],strides=1,activation=tf.nn.relu)
             conv4 = tf.layers.conv2d(inputs=conv3,filters=64,kernel_size=[3, 3],strides=1,activation=tf.nn.relu)
             pool4 = tf.layers.max_pooling2d(inputs=conv4, pool_size=[2, 2], strides=2)
             pool4 = tf.nn.dropout(pool4, tf.constant(0.5,dtype=np.float32)+self.droput_keep_pct/2)
             print('POOL4', pool4)
-            self.x = tf.reshape(pool4,[par['batch_size'], -1])
+            """
+            self.x = tf.reshape(conv4,[par['batch_size'], -1])
 
 
         elif par['task'] == 'mnist':
@@ -208,10 +224,10 @@ def main():
         sess.run(tf.global_variables_initializer())
         t_start = time.time()
 
-        for task in range(par['n_tasks']):
+        for task in range(0,par['n_tasks']):
 
             gate = 1 if (par['task'] == 'mnist' or task == 0) else 0
-            keep_pct = par['keep_pct'] if (par['task'] == 'mnist' or task > 0) else 0.5
+            keep_pct = par['keep_pct'] if (par['task'] == 'mnist' or task > 0) else 1.0
             #gate = 1
 
             for i in range(par['n_train_batches']):
@@ -222,7 +238,7 @@ def main():
                 # this is to prevent interference from AdamOptimizer
                 lr = par['learning_rate'] if (par['task']=='mnist' or (par['task']=='cifar' and i > 100)) else 0
 
-                #stim_in += np.random.normal(0,0.2,size=stim_in.shape)
+                #stim_in += np.random.normal(0,0.02,size=stim_in.shape)
                 #print(stim_in.shape, y_hat.shape, td_in.shape, np.mean(td_in,axis=0))
 
                 if par['omega_c'] > 0:
@@ -236,7 +252,7 @@ def main():
                     print(i, loss)
 
             # if training on the cifar task, don't update omegas on the 0th task
-            if par['omega_c'] > 0 and (par['task']=='mnist' or (par['task']=='cifar' and task > 0)):
+            if par['omega_c'] > 0 and (par['task']=='mnist' or (par['task']=='cifar' and task > -1)):
                 sess.run(model.update_big_omega,feed_dict={td:td_in})
                 sess.run(model.reset_small_omega)
                 big_omegas = sess.run(model.big_omega_var)
@@ -246,11 +262,11 @@ def main():
                 for test_task in range(task+1):
                     stim_in, y_hat, td_in = stim.make_batch(test_task, test = True)
                     accuracy[test_task] = sess.run(model.accuracy, feed_dict={x:stim_in, td:td_in, y:y_hat, droput_keep_pct:1.0, gate_conv: gate})
-            elif par['task']=='cifar' and task > 0:
-                accuracy = np.zeros((task))
-                for test_task in range(1,task+1):
+            elif par['task']=='cifar' and task > -1:
+                accuracy = np.zeros((task+1))
+                for test_task in range(0,task+1):
                     stim_in, y_hat, td_in = stim.make_batch(test_task, test = True)
-                    accuracy[test_task-1] = sess.run(model.accuracy, feed_dict={x:stim_in, td:td_in, y:y_hat, droput_keep_pct:1.0, gate_conv: gate})
+                    accuracy[test_task] = sess.run(model.accuracy, feed_dict={x:stim_in, td:td_in, y:y_hat, droput_keep_pct:1.0, gate_conv: gate})
             else:
                 accuracy = [-1]
 
@@ -263,25 +279,6 @@ def main():
 
 
     print('\nModel execution complete.')
-
-def calculate_task_accuracy(task, stim, sess, model):
-
-    if par['task']=='mnist':
-        accuracy = np.zeros((task+1))
-        for test_task in range(task+1):
-            stim_in, y_hat, td_in = stim.make_batch(task, test = True)
-            accuracy[test_task] = sess.run(model.accuracy, feed_dict={x:stim_in, td:td_in, y:y_hat, droput_keep_pct:1.0, gate_conv: gate})
-    elif par['task']=='cifar' and task > 0:
-        accuracy = np.zeros((task))
-        for test_task in range(1,task+1):
-            stim_in, y_hat, td_in = stim.make_batch(task, test = True)
-            accuracy[test_task-1] = sess.run(model.accuracy, feed_dict={x:stim_in, td:td_in, y:y_hat, droput_keep_pct:1.0, gate_conv: gate})
-    else:
-        return -1
-
-    print('Task ',task, ' Mean ', np.mean(accuracy), ' First ', accuracy[0], ' Last ', accuracy[-1])
-    return accuracy
-
 
 
 def determine_top_down_weights():

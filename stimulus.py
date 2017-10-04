@@ -45,9 +45,12 @@ class Stimulus:
 
         self.cifar_train_images = np.array([])
         self.cifar_train_labels = np.array([])
+        self.cifar_test_images = np.array([])
+        self.cifar_test_labels = np.array([])
 
         """
         Load CIFAR-10 data
+        """
         """
         for i in range(5):
             x =  pickle.load(open(self.cifar10_dir + 'data_batch_' + str(i+1),'rb'), encoding='bytes')
@@ -59,20 +62,22 @@ class Stimulus:
         x =  pickle.load(open(self.cifar10_dir + 'test_batch','rb'), encoding='bytes')
         self.cifar_test_images = np.array(x[b'data'])
         self.cifar_test_labels = np.reshape(np.array(x[b'labels']),(-1,1))
+        """
 
         """
         Load CIFAR-100 data
         """
         x =  pickle.load(open(self.cifar100_dir + 'train','rb'), encoding='bytes')
-        self.cifar_train_images = np.vstack((self.cifar_train_images, x[b'data']))
-        labels = np.reshape(np.array(x[b'fine_labels'])+10,(-1,1))
-        self.cifar_train_labels = np.vstack((self.cifar_train_labels, labels))
+        self.cifar_train_images = np.vstack((self.cifar_train_images, x[b'data'])) if self.cifar_train_images.size else  np.array(x[b'data'])
+        labels = np.reshape(np.array(x[b'fine_labels']),(-1,1))
+        self.cifar_train_labels = np.vstack((self.cifar_train_labels, labels)) if self.cifar_train_labels.size else np.array(labels)
 
         x =  pickle.load(open(self.cifar100_dir + 'test','rb'), encoding='bytes')
-        self.cifar_test_images = np.vstack((self.cifar_test_images, x[b'data']))
-        labels = np.reshape(np.array(x[b'fine_labels'])+10,(-1,1))
-        self.cifar_test_labels = np.vstack((self.cifar_test_labels, labels))
+        self.cifar_test_images = np.vstack((self.cifar_test_images, x[b'data'])) if self.cifar_test_images.size else  np.array(x[b'data'])
+        labels = np.reshape(np.array(x[b'fine_labels']),(-1,1))
+        self.cifar_test_labels = np.vstack((self.cifar_test_labels, labels)) if self.cifar_test_labels.size else  np.array(labels)
 
+        print(self.cifar_test_labels.shape, self.cifar_train_labels.shape)
 
     def find_cifar_indices(self):
 
@@ -144,9 +149,11 @@ class Stimulus:
             batch_data, batch_labels = self.generate_cifar_batch(task_num, test)
         else:
             print('Unrecognized task')
-
+        """
         if par['task'] == 'cifar' and task_num>0:
-            task_num -= 1 # because we're not evaluating accuracy on  task 0
+            task_num -= 1 # because we're not evaluating accuracy on task 0
+        """
+
         top_down = np.tile(np.reshape(par['td_cases'][task_num, :],(1,-1)),(par['batch_size'],1))
 
         return batch_data, batch_labels, top_down
