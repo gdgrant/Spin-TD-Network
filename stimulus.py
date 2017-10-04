@@ -5,7 +5,7 @@
 import numpy as np
 from parameters import *
 import pickle
-
+from mnist import MNIST
 
 class Stimulus:
 
@@ -22,7 +22,6 @@ class Stimulus:
 
 
     def generate_mnist_tuning(self):
-        from mnist import MNIST
         mndata = MNIST('./mnist/data/original')
         self.mnist_train_images, self.mnist_train_labels = mndata.load_training()
         self.mnist_test_images,  self.mnist_test_labels  = mndata.load_testing()
@@ -39,7 +38,7 @@ class Stimulus:
             self.mnist_permutation.append(np.random.permutation(784))
 
 
-    def generate_cifar_tuning(self):
+    def generate_cifar_tuning(self, selection='100'):
 
         self.cifar_train_images = np.array([])
         self.cifar_train_labels = np.array([])
@@ -49,36 +48,35 @@ class Stimulus:
         """
         Load CIFAR-10 data
         """
-        if False:
-            ########################
-            ### Currently unused ###
+        if selection=='10':
             for i in range(5):
-                x =  pickle.load(open(self.cifar10_dir + 'data_batch_' + str(i+1),'rb'), encoding='bytes')
-                self.cifar_train_images = np.vstack((self.cifar_train_images, x[b'data'])) if self.cifar_train_images.size else x[b'data']
+                x = pickle.load(open(self.cifar10_dir + 'data_batch_' + str(i+1),'rb'), encoding='bytes')
                 labels = np.reshape(np.array(x[b'labels']),(-1,1))
-                self.cifar_train_labels = np.vstack((self.cifar_train_labels, labels))  if self.cifar_train_labels.size else labels
+                images = x[b'data']
 
-            x =  pickle.load(open(self.cifar10_dir + 'test_batch','rb'), encoding='bytes')
+                self.cifar_train_images = np.vstack((self.cifar_train_images, images)) if self.cifar_train_images.size else images
+                self.cifar_train_labels = np.vstack((self.cifar_train_labels, labels)) if self.cifar_train_labels.size else labels
+
+            x = pickle.load(open(self.cifar10_dir + 'test_batch','rb'), encoding='bytes')
             self.cifar_test_images = np.array(x[b'data'])
             self.cifar_test_labels = np.reshape(np.array(x[b'labels']),(-1,1))
-            ### Currently unused ###
-            ########################
 
         """
         Load CIFAR-100 data
         """
-        x = pickle.load(open(self.cifar100_dir + 'train','rb'), encoding='bytes')
-        labels = np.reshape(np.array(x[b'fine_labels']),(-1,1))
-        images = x[b'data']
+        if selection=='100':
+            x = pickle.load(open(self.cifar100_dir + 'train','rb'), encoding='bytes')
+            labels = np.reshape(np.array(x[b'fine_labels']),(-1,1))
+            images = x[b'data']
 
-        x = pickle.load(open(self.cifar100_dir + 'test','rb'), encoding='bytes')
-        labels = np.reshape(np.array(x[b'fine_labels']),(-1,1))
-        images = x[b'data']
+            x = pickle.load(open(self.cifar100_dir + 'test','rb'), encoding='bytes')
+            labels = np.reshape(np.array(x[b'fine_labels']),(-1,1))
+            images = x[b'data']
 
-        self.cifar_train_images = np.vstack((self.cifar_train_images, images)) if self.cifar_train_images.size else np.array(images)
-        self.cifar_train_labels = np.vstack((self.cifar_train_labels, labels)) if self.cifar_train_labels.size else np.array(labels)
-        self.cifar_test_images  = np.vstack((self.cifar_test_images, images))  if self.cifar_test_images.size else np.array(images)
-        self.cifar_test_labels  = np.vstack((self.cifar_test_labels, labels))  if self.cifar_test_labels.size else np.array(labels)
+            self.cifar_train_images = np.vstack((self.cifar_train_images, images)) if self.cifar_train_images.size else np.array(images)
+            self.cifar_train_labels = np.vstack((self.cifar_train_labels, labels)) if self.cifar_train_labels.size else np.array(labels)
+            self.cifar_test_images  = np.vstack((self.cifar_test_images, images))  if self.cifar_test_images.size  else np.array(images)
+            self.cifar_test_labels  = np.vstack((self.cifar_test_labels, labels))  if self.cifar_test_labels.size  else np.array(labels)
 
         print('CIFAR shapes:', self.cifar_test_labels.shape, self.cifar_train_labels.shape)
 
@@ -92,7 +90,7 @@ class Stimulus:
             self.cifar_test_ind.append(np.where((self.cifar_test_labels>=i)*(self.cifar_test_labels<i+self.cifar_labels_per_task))[0])
 
 
-    def generate_cifar_batch(self, task_num, test = False):
+    def generate_cifar_batch(self, task_num, test=False):
 
         # Select example indices
         ind_ref = self.cifar_test_ind if test else self.cifar_train_ind
@@ -105,17 +103,17 @@ class Stimulus:
         for i in range(par['batch_size']):
             if test:
                 k = int(self.cifar_test_labels[ind[q[i]]] - task_num*self.cifar_labels_per_task)
-                batch_labels[i, k] = 1
-                batch_data[i, :] = np.float32(np.reshape(self.cifar_test_images[ind[q[i]], :],(1,32,32,3), order='F'))/255
+                batch_labels[i,k] = 1
+                batch_data[i,:] = np.float32(np.reshape(self.cifar_test_images[ind[q[i]], :],(1,32,32,3), order='F'))/255
             else:
                 k = int(self.cifar_train_labels[ind[q[i]]] - task_num*self.cifar_labels_per_task)
-                batch_labels[i, k] = 1
-                batch_data[i, :] = np.float32(np.reshape(self.cifar_train_images[ind[q[i]], :],(1,32,32,3), order='F'))/255
+                batch_labels[i,k] = 1
+                batch_data[i,:] = np.float32(np.reshape(self.cifar_train_images[ind[q[i]], :],(1,32,32,3), order='F'))/255
 
         return batch_data, batch_labels
 
 
-    def generate_mnist_batch(self, task_num, test = False):
+    def generate_mnist_batch(self, task_num, test=False):
 
         # Select random example indices
         ind_num = self.num_test_examples if test else self.num_train_examples

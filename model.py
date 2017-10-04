@@ -15,7 +15,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL']='2'
 ###################
 class Model:
 
-    def __init__(self, input_data, td_data, target_data, droput_keep_pct, learning_rate, gate_conv = 1):
+    def __init__(self, input_data, td_data, target_data, droput_keep_pct, learning_rate, gate_conv=1):
 
         # Load the input activity, the target data, and the training mask
         # for this batch of trials
@@ -34,27 +34,39 @@ class Model:
 
 
     def run_model(self):
+        print('Input:', self.input_data)
+        relu = tf.nn.relu
+        conv = tf.nn.conv2d
+        pool = tf.layers.max_pooling2d
+        sp   = {'strides':[1,1,1,1], 'padding':'SAME'}
+        filt = [conv_weights['conv2d/kernel'], conv_weights['conv2d_1/kernel'],
+                conv_weights['conv2d_2/kernel'], conv_weights['conv2d_3/kernel']]
 
         if par['task'] == 'cifar':
-            print('INPUT', self.input_data)
-
             conv_weights = pickle.load(open('./encoder_testing/conv_weights.pkl','rb'))
-            conv1 = tf.nn.relu(tf.nn.conv2d(input=self.input_data, filter=conv_weights['conv2d/kernel'],strides=[1,1,1,1],padding='SAME'))
-            conv2 = tf.nn.relu(tf.nn.conv2d(input=conv1, filter=conv_weights['conv2d_1/kernel'],strides=[1,1,1,1],padding='SAME'))
-            conv2 = tf.layers.max_pooling2d(inputs=conv2, pool_size=[2, 2], strides=2)
-            print('conv2',conv2)
-            conv3 = tf.nn.relu(tf.nn.conv2d(input=conv2, filter=conv_weights['conv2d_2/kernel'],strides=[1,1,1,1],padding='SAME'))
-            conv4 = tf.nn.relu(tf.nn.conv2d(input=conv3, filter=conv_weights['conv2d_3/kernel'],strides=[1,1,1,1],padding='SAME'))
-            conv4 = tf.layers.max_pooling2d(inputs=conv4, pool_size=[2, 2], strides=2)
-            print('conv4',conv4)
-            #conv5 = tf.nn.relu(tf.nn.conv2d(input=conv4, filter=conv_weights['conv2d_4/kernel'],strides=[1,1,1,1],padding='SAME'))
-            #conv6 = tf.nn.relu(tf.nn.conv2d(input=conv5, filter=conv_weights['conv2d_5/kernel'],strides=[1,1,1,1],padding='SAME'))
-            #conv6 = tf.layers.max_pooling2d(inputs=conv6, pool_size=[2, 2], strides=2)
-            #print('conv6 ', conv6)
+
+            conv1 = relu(conv(input=self.input_data, filter=filt[0], **sp))
+            conv2 = relu(conv(input=conv1, filter=filt[1], **sp))
+            conv2 = pool(inputs=conv2, pool_size=[2, 2], strides=2)
+
+            conv3 = relu(conv(input=conv2, filter=filt[2], **sp))
+            conv4 = relu(conv(input=conv3, filter=filt[3], **sp))
+            conv4 = pool(inputs=conv4, pool_size=[2, 2], strides=2)
+
+            print('conv2:',conv2)
+            print('conv4:',conv4)
+
             """
-            #conv1 = tf.layers.conv2d(inputs=self.input_data,filters=32,kernel_size=[3, 3], strides=1,activation=tf.nn.relu)
+            # Now unused convolutional layers
+            conv5 = tf.nn.relu(tf.nn.conv2d(input=conv4, filter=conv_weights['conv2d_4/kernel'],strides=[1,1,1,1],padding='SAME'))
+            conv6 = tf.nn.relu(tf.nn.conv2d(input=conv5, filter=conv_weights['conv2d_5/kernel'],strides=[1,1,1,1],padding='SAME'))
+            conv6 = tf.layers.max_pooling2d(inputs=conv6, pool_size=[2, 2], strides=2)
+            print('conv6 ', conv6)
+
+            # A previous convolutional encoder setup
+            conv1 = tf.layers.conv2d(inputs=self.input_data,filters=32,kernel_size=[3, 3], strides=1,activation=tf.nn.relu)
             conv2 = tf.layers.conv2d(inputs=conv1,filters=32,kernel_size=[3, 3], strides=1,activation=tf.nn.relu)
-            $pool2 = tf.layers.max_pooling2d(inputs=conv2, pool_size=[2, 2], strides=2)
+            pool2 = tf.layers.max_pooling2d(inputs=conv2, pool_size=[2, 2], strides=2)
             pool2 = tf.nn.dropout(pool2, tf.constant(0.5,dtype=np.float32)+self.droput_keep_pct/2)
             conv3 = tf.layers.conv2d(inputs=pool2,filters=64,kernel_size=[3, 3],strides=1,activation=tf.nn.relu)
             conv4 = tf.layers.conv2d(inputs=conv3,filters=64,kernel_size=[3, 3],strides=1,activation=tf.nn.relu)
@@ -62,44 +74,47 @@ class Model:
             pool4 = tf.nn.dropout(pool4, tf.constant(0.5,dtype=np.float32)+self.droput_keep_pct/2)
             print('POOL4', pool4)
             """
-            self.x = tf.reshape(conv4,[par['batch_size'], -1])
 
+            self.x = tf.reshape(conv4,[par['batch_size'], -1])
 
         elif par['task'] == 'mnist':
             self.x = self.input_data
 
+        # Network layout definition
         self.td_gating = []
         for n in range(par['n_layers']-1):
             scope_name = 'layer' + str(n)
             with tf.variable_scope(scope_name):
                 if n < par['n_layers']-2 or par['dendrites_final_layer']:
-                    W = tf.get_variable('W', initializer = tf.random_uniform([par['layer_dims'][n],par['n_dendrites'],par['layer_dims'][n+1]], -1.0/np.sqrt(par['layer_dims'][n]), 1.0/np.sqrt(par['layer_dims'][n])), trainable = True)
-                    b = tf.get_variable('b', initializer = tf.zeros([1,par['n_dendrites'],par['layer_dims'][n+1]]), trainable = True)
-                    W_td = tf.get_variable('W_td', initializer = par['W_td0'][n], trainable = False)
+                    # Do calculations for each layer
+                    W = tf.get_variable('W', initializer=tf.random_uniform([par['layer_dims'][n],par['n_dendrites'],par['layer_dims'][n+1]], -1.0/np.sqrt(par['layer_dims'][n]), 1.0/np.sqrt(par['layer_dims'][n])), initializer=True)
+                    b = tf.get_variable('b', initializer=tf.zeros([1,par['n_dendrites'],par['layer_dims'][n+1]]), initializer=True)
+                    W_td = tf.get_variable('W_td', initializer=par['W_td0'][n], initializer=False)
 
                     if par['clamp'] == 'dendrites':
-                        self.td_gating.append(tf.nn.softmax(tf.tensordot(self.td_data, W_td, ([1],[0])), dim = 1))
+                        self.td_gating.append(tf.nn.softmax(tf.tensordot(self.td_data, W_td, ([1],[0])), dim=1))
                     elif par['clamp'] == 'neurons':
                         self.td_gating.append(tf.tensordot(self.td_data, W_td, ([1],[0])))
                 else:
-                    # final layer -> no dendrites
-                    W = tf.get_variable('W', initializer = tf.random_uniform([par['layer_dims'][n],par['layer_dims'][n+1]], -1.0/np.sqrt(par['layer_dims'][n]), 1.0/np.sqrt(par['layer_dims'][n])), trainable = True)
-                    b = tf.get_variable('b', initializer = tf.zeros([1,par['layer_dims'][n+1]]), trainable = True)
+                    # Do calculations for the final layer with no dendrites
+                    W = tf.get_variable('W', initializer=tf.random_uniform([par['layer_dims'][n],par['layer_dims'][n+1]], -1.0/np.sqrt(par['layer_dims'][n]), 1.0/np.sqrt(par['layer_dims'][n])), initializer=True)
+                    b = tf.get_variable('b', initializer=tf.zeros([1,par['layer_dims'][n+1]]), initializer=True)
 
 
                 if n < par['n_layers']-2:
-                    dend_activity = tf.nn.relu(tf.tensordot(self.x, W, ([1],[0]))  + b)
-                    print('dend_activity', dend_activity)
+                    # Find dendrite activity
+                    dend_activity = tf.nn.relu(tf.tensordot(self.x, W, ([1],[0])) + b)
+                    print('Dendrite activity:', dend_activity)
                     self.x = tf.nn.dropout(tf.reduce_sum(dend_activity*self.td_gating[n], axis=1), self.droput_keep_pct)
 
                 else:
+                    # Find activity of last layer with or without dendrites
                     if par['dendrites_final_layer']:
                         dend_activity = tf.tensordot(self.x, W, ([1],[0])) + b
-                        self.y = tf.nn.softmax(tf.reduce_sum(dend_activity*self.td_gating[n], axis=1), dim = 1)
-                        print('Y',self.y)
+                        self.y = tf.nn.softmax(tf.reduce_sum(dend_activity*self.td_gating[n], axis=1), dim=1)
                     else:
                         self.y = tf.nn.softmax(tf.matmul(self.x,W) + b, dim = 1)
-                        print('Y',self.y)
+                    print('Y:',self.y)
 
 
 

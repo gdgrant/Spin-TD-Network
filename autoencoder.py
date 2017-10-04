@@ -119,6 +119,7 @@ def main():
         t_start = time.time()
 
         s = stimulus.Stimulus()
+        s.generate_cifar_tuning('10')
         for i in range(2000):
             task_id = np.random.randint(10)
             y_hat, _, _ = s.make_batch(task_id, test=False)
