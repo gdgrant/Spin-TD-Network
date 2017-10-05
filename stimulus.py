@@ -31,8 +31,8 @@ class Stimulus:
         self.num_test_examples  = len(self.mnist_test_images)
         self.num_outputs        = 10
 
-        self.mnist_train_images = np.array(self.mnist_train_images)
-        self.mnist_test_images  = np.array(self.mnist_test_images)
+        self.mnist_train_images = np.array(self.mnist_train_images)/255
+        self.mnist_test_images  = np.array(self.mnist_test_images)/255
 
         self.mnist_permutation  = []
         for t in range(par['n_tasks']):
