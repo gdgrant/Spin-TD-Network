@@ -1,6 +1,7 @@
 import tensorflow as tf
 import numpy as np
 import stimulus
+import AdamOpt
 from parameters import *
 import os, time
 import pickle
@@ -39,13 +40,35 @@ class Model:
             print('INPUT', self.input_data)
 
             conv_weights = pickle.load(open('./encoder_testing/conv_weights.pkl','rb'))
-            conv1 = tf.nn.relu(tf.nn.conv2d(input=self.input_data, filter=conv_weights['conv2d/kernel'],strides=[1,1,1,1],padding='SAME'))
-            conv2 = tf.nn.relu(tf.nn.conv2d(input=conv1, filter=conv_weights['conv2d_1/kernel'],strides=[1,1,1,1],padding='SAME'))
-            conv2 = tf.layers.max_pooling2d(inputs=conv2, pool_size=[2, 2], strides=2)
+            print(conv_weights['conv2d/bias'])
+            #conv1 = tf.nn.relu(tf.nn.conv2d(input=self.input_data, filter=conv_weights['conv2d/kernel'],strides=[1,1,1,1],padding='SAME'))
+
+            conv1 = tf.layers.conv2d(inputs=self.input_data,filters=32, kernel_size=[3, 3], kernel_initializer = \
+                tf.constant_initializer(conv_weights['conv2d/kernel']),  bias_initializer = tf.constant_initializer(conv_weights['conv2d/bias']), \
+                strides=1, activation=tf.nn.relu, padding = 'SAME')
+
+
+            conv2 = tf.layers.conv2d(inputs=conv1,filters=32, kernel_size=[3, 3], kernel_initializer = \
+                tf.constant_initializer(conv_weights['conv2d_1/kernel']),  bias_initializer = tf.constant_initializer(conv_weights['conv2d_1/bias']), \
+                strides=1, activation=tf.nn.relu, padding = 'SAME')
+
+
+            #conv2 = tf.nn.relu(tf.nn.conv2d(input=conv1, filter=conv_weights['conv2d_1/kernel'],strides=[1,1,1,1],padding='SAME'))
+            conv2 = tf.layers.max_pooling2d(inputs=conv2, pool_size=[2, 2], strides=2, padding='SAME')
             print('conv2',conv2)
-            conv3 = tf.nn.relu(tf.nn.conv2d(input=conv2, filter=conv_weights['conv2d_2/kernel'],strides=[1,1,1,1],padding='SAME'))
-            conv4 = tf.nn.relu(tf.nn.conv2d(input=conv3, filter=conv_weights['conv2d_3/kernel'],strides=[1,1,1,1],padding='SAME'))
-            conv4 = tf.layers.max_pooling2d(inputs=conv4, pool_size=[2, 2], strides=2)
+            #conv3 = tf.nn.relu(tf.nn.conv2d(input=conv2, filter=conv_weights['conv2d_2/kernel'],strides=[1,1,1,1],padding='SAME'))
+            #conv4 = tf.nn.relu(tf.nn.conv2d(input=conv3, filter=conv_weights['conv2d_3/kernel'],strides=[1,1,1,1],padding='SAME'))
+            conv3 = tf.layers.conv2d(inputs=conv2,filters=64, kernel_size=[3, 3], kernel_initializer = \
+                tf.constant_initializer(conv_weights['conv2d_2/kernel']),  bias_initializer = tf.constant_initializer(conv_weights['conv2d_2/bias']), \
+                strides=1, activation=tf.nn.relu, padding = 'SAME')
+
+
+            conv4 = tf.layers.conv2d(inputs=conv3,filters=64, kernel_size=[3, 3], kernel_initializer = \
+                tf.constant_initializer(conv_weights['conv2d_3/kernel']),  bias_initializer = tf.constant_initializer(conv_weights['conv2d_3/bias']), \
+                strides=1, activation=tf.nn.relu, padding = 'SAME')
+
+
+            conv4 = tf.layers.max_pooling2d(inputs=conv4, pool_size=[2, 2], strides=2, padding='SAME')
             print('conv4',conv4)
             #conv5 = tf.nn.relu(tf.nn.conv2d(input=conv4, filter=conv_weights['conv2d_4/kernel'],strides=[1,1,1,1],padding='SAME'))
             #conv6 = tf.nn.relu(tf.nn.conv2d(input=conv5, filter=conv_weights['conv2d_5/kernel'],strides=[1,1,1,1],padding='SAME'))
@@ -68,6 +91,7 @@ class Model:
         elif par['task'] == 'mnist':
             self.x = self.input_data
 
+        self.spike_loss = 0
         self.td_gating = []
         for n in range(par['n_layers']-1):
             scope_name = 'layer' + str(n)
@@ -92,6 +116,8 @@ class Model:
                     print('dend_activity', dend_activity)
                     self.x = tf.nn.dropout(tf.reduce_sum(dend_activity*self.td_gating[n], axis=1), self.droput_keep_pct)
 
+                    self.spike_loss += tf.reduce_mean(self.x)
+
                 else:
                     if par['dendrites_final_layer']:
                         dend_activity = tf.tensordot(self.x, W, ([1],[0])) + b
@@ -106,13 +132,19 @@ class Model:
     def optimize(self):
 
         epsilon = 1e-4
-        optimizer = tf.train.AdamOptimizer(learning_rate = self.learning_rate)
+        #optimizer = tf.train.AdamOptimizer(learning_rate = self.learning_rate)
+        #optimizer = tf.train.GradientDescentOptimizer(learning_rate = self.learning_rate)
 
         # Use all trainable variables, except those in the convolutional layers
         #variables = [var for var in tf.trainable_variables() if not var.op.name.find('conv')==0]
-        variables = [var for var in tf.trainable_variables()]
+        variables = [var for var in tf.trainable_variables() if not var.op.name.find('conv')==0]
         print('variables ', variables)
+
+        adam_optimizer = AdamOpt.AdamOpt(variables, learning_rate = self.learning_rate)
+        optimizer = tf.train.GradientDescentOptimizer(learning_rate = self.learning_rate)
+
         small_omega_var = {}
+        gates = {}
         previous_weights_mu_minus_1 = {}
         self.big_omega_var = {}
         aux_loss = 0.0
@@ -124,6 +156,7 @@ class Model:
         if par['omega_c'] > 0:
             for var in variables:
 
+                gates[var.op.name] = tf.Variable(tf.zeros(var.get_shape()), trainable=False)
                 small_omega_var[var.op.name] = tf.Variable(tf.zeros(var.get_shape()), trainable=False)
                 reset_small_omega_ops.append( tf.assign( small_omega_var[var.op.name], small_omega_var[var.op.name]*0.0 ) )
 
@@ -145,51 +178,52 @@ class Model:
             # Reset_small_omega also makes a backup of the final weights, used as hook in the auxiliary loss
             self.reset_small_omega = tf.group(*reset_small_omega_ops)
 
-        self.task_loss = -tf.reduce_sum( self.target_data*tf.log(self.y+epsilon) + (1.-self.target_data)*tf.log(1.-self.y+epsilon) )
-        # Gradient of the loss function for the current task
-        gradients = optimizer.compute_gradients(self.task_loss, var_list=variables)
+        self.task_loss = -tf.reduce_mean( self.target_data*tf.log(self.y+epsilon) + (1.-self.target_data)*tf.log(1.-self.y+epsilon) )
 
-            # Gradient of the loss+aux function, in order to both perform training and to compute delta_weights
-        if par['omega_c'] > 0:
-        	gradients_with_aux = optimizer.compute_gradients(self.task_loss + par['omega_c']*aux_loss, var_list=variables)
-        else:
-        	gradients_with_aux = gradients
+        self.total_loss = self.task_loss + 0.04*self.spike_loss
+
+        # Gradient of the loss function for the current task
+        gradients = optimizer.compute_gradients(self.task_loss, var_list = variables)
 
         """
         Apply any applicable weights masks to the gradient and clip
         """
-        self.capped_gvs = []
-        for grad, var in gradients_with_aux:
-
+        for var in variables:
             if var.op.name.find('conv') == 0:
                 # convolutional layer
-                gate = self.gate_conv
-                td_gating = tf.constant(np.float32(1))
-
+                tf.assign(gates[var.op.name], self.gate_conv)
             else:
                 # fully connected layer
-                gate = tf.constant(np.float32(1))
                 layer_num = int([s for s in var.op.name if s.isdigit()][0])
                 var_dim = var.get_shape()[0].value
                 if par['clamp'] == 'dendrites' and (layer_num < par['n_layers']-2 or par['dendrites_final_layer']):
                     td_gating = tf.tile(tf.reduce_mean(self.td_gating[layer_num], axis=0, keep_dims = True), [var_dim, 1, 1])
+                    tf.assign(gates[var.op.name], td_gating)
                 else:
-                    td_gating = tf.constant(np.float32(1))
+                    tf.assign(gates[var.op.name], 1)
 
-            self.capped_gvs.append((tf.clip_by_norm(gate*td_gating*grad, 1), var))
+        # Gradient of the loss+aux function, in order to both perform training and to compute delta_weights
+        if par['omega_c'] > 0:
+        	#m1,v,dg = adam_optimizer.compute_gradients(self.total_loss + par['omega_c']*aux_loss, gates)
+            self.train_op = adam_optimizer.compute_gradients(self.total_loss + par['omega_c']*aux_loss, gates)
+        else:
+            m1,v,dg = adam_optimizer.apply_gradients(self.total_loss + par['omega_c']*aux_loss, gates)
+        	#self.train_op = adam_optimizer.apply_gradients(self.total_loss, gates)
+        #self.train_op = tf.group(*m1)
+        self.delta_grads = adam_optimizer.return_means()
+        self.delta_grads1 = adam_optimizer.return_delta_grads()
+
 
         # This is called every batch
         #print(small_omega_var.keys())
         if par['omega_c'] > 0:
-            for i, (grad,var) in enumerate(gradients_with_aux):
+            for i, (grad,var) in enumerate(gradients):
                 print(i,var.op.name)
-                update_small_omega_ops.append( tf.assign_add( small_omega_var[var.op.name], self.learning_rate*self.capped_gvs[i][0]*gradients[i][0] ) )
-                #for j in range(n_tasks):
-                #update_small_omega_ops.append( tf.assign_add( small_omega_var[var.op.name, j], task_vector[j]*learning_rate*capped_gvs[i][0]*gradients[i][0] ) ) # small_omega -= delta_weight(t)*gradient(t)
+                update_small_omega_ops.append( tf.assign_add( small_omega_var[var.op.name], self.delta_grads1[var.op.name]*gradients[i][0] ) )
 
             self.update_small_omega = tf.group(*update_small_omega_ops) # 1) update small_omega after each train!
 
-        self.train_op = optimizer.apply_gradients(self.capped_gvs)
+        #self.train_op = adam_optimizer.apply_gradients()
 
         correct_prediction = tf.equal(tf.argmax(self.y,1), tf.argmax(self.target_data,1))
         self.accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
@@ -214,7 +248,7 @@ def main():
     td  = tf.placeholder(tf.float32, [par['batch_size'], par['n_td']], 'TD')
     y   = tf.placeholder(tf.float32, [ par['batch_size'], par['layer_dims'][-1]], 'out')
     droput_keep_pct = tf.placeholder(tf.float32, [] , 'dropout')
-    learning_rate = tf.placeholder(tf.float32, [] , 'dropout')
+    learning_rate = tf.placeholder(tf.float32, [] , 'learning_rate')
     gate_conv = tf.placeholder(tf.float32, [] , 'gate_conv')
 
     stim = stimulus.Stimulus()
@@ -227,7 +261,8 @@ def main():
 
         for task in range(0,par['n_tasks']):
 
-            gate = 1 if (par['task'] == 'mnist' or task == 0) else 0
+            #gate = 1 if (par['task'] == 'mnist' or task == 0) else 0
+            gate = 0
             keep_pct = par['keep_pct'] if (par['task'] == 'mnist' or task > 0) else 1.0
             #gate = 1
 
@@ -237,20 +272,22 @@ def main():
 
                 # learning rate is set to zero for first 100 epochs of cifar task
                 # this is to prevent interference from AdamOptimizer
-                lr = par['learning_rate'] if (par['task']=='mnist' or (par['task']=='cifar' and i > 100)) else 0
+                lr = par['learning_rate'] if (par['task']=='mnist' or (par['task']=='cifar' and i > -1)) else 0
 
                 #stim_in += np.random.normal(0,0.02,size=stim_in.shape)
                 #print(stim_in.shape, y_hat.shape, td_in.shape, np.mean(td_in,axis=0))
 
                 if par['omega_c'] > 0:
-                    loss,_,_,capped_gvs, td_gating = sess.run([model.task_loss, model.train_op,model.update_small_omega, model.capped_gvs, model.td_gating], \
+                    _,loss,spike_loss,_,delta_grads = sess.run([model.train_op,model.task_loss,model.spike_loss,model.update_small_omega, model.delta_grads], \
                         feed_dict={x:stim_in, td:td_in, y:y_hat, droput_keep_pct:keep_pct, learning_rate: lr, gate_conv: gate})
                 else:
                     sess.run(model.train_op, feed_dict={x:stim_in, td:td_in, y:y_hat, droput_keep_pct: par['keep_pct'], \
                         learning_rate: lr, gate_conv: gate})
 
                 if i//100 == i/100:
-                    print(i, loss)
+                    dgs = [np.mean(dg) for dg in delta_grads.values()]
+                    #dgs = [np.mean(g) for g,v in delta_grads]
+                    print(i, loss, spike_loss, dgs)
 
             # if training on the cifar task, don't update omegas on the 0th task
             if par['omega_c'] > 0 and (par['task']=='mnist' or (par['task']=='cifar' and task > -1)):
