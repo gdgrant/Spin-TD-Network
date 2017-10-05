@@ -31,18 +31,18 @@ class Autoencoder:
 
 
         ### Encoder
-        conv1 = tf.layers.conv2d(inputs=data1, filters=64, kernel_size=(3,3), padding='same', activation=tf.nn.relu)
-        conv2 = tf.layers.conv2d(inputs=conv1, filters=64, kernel_size=(3,3), padding='same', activation=tf.nn.relu)
+        conv1 = tf.layers.conv2d(inputs=data1, filters=32, kernel_size=(3,3), padding='same', activation=tf.nn.relu)
+        conv2 = tf.layers.conv2d(inputs=conv1, filters=32, kernel_size=(3,3), padding='same', activation=tf.nn.relu)
         conv2 = tf.layers.dropout(conv2, drop_pct)
         # Now 64x64x32
         maxpool2 = tf.layers.max_pooling2d(conv2, pool_size=(2,2), strides=(2,2), padding='same')
         # Now 16x16x32
-        conv3 = tf.layers.conv2d(inputs=maxpool2, filters=32, kernel_size=(3,3), padding='same', activation=tf.nn.relu)
-        conv4 = tf.layers.conv2d(inputs=conv3, filters=32, kernel_size=(3,3), padding='same', activation=tf.nn.relu)
+        conv3 = tf.layers.conv2d(inputs=maxpool2, filters=64, kernel_size=(3,3), padding='same', activation=tf.nn.relu)
+        conv4 = tf.layers.conv2d(inputs=conv3, filters=64, kernel_size=(3,3), padding='same', activation=tf.nn.relu)
         conv4 = tf.layers.dropout(conv4, drop_pct)
-        # Now 16x16x32
+        # Now 16x16x64
         maxpool4 = tf.layers.max_pooling2d(conv4, pool_size=(2,2), strides=(2,2), padding='same')
-        # Now 8x8x32
+        # Now 8x8x64
         #conv5 = tf.layers.conv2d(inputs=maxpool4, filters=16, kernel_size=(3,3), padding='same', activation=tf.nn.relu)
         #conv6 = tf.layers.conv2d(inputs=conv5, filters=16, kernel_size=(3,3), padding='same', activation=tf.nn.relu)
         # Now 8x8x16
@@ -54,13 +54,13 @@ class Autoencoder:
         ### Decoder
         upsample1 = tf.image.resize_images(maxpool4, size=(16,16), method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
         # Now 8x8x16
-        deconv1 = tf.layers.conv2d(inputs=upsample1, filters=32, kernel_size=(3,3), padding='same', activation=tf.nn.relu)
-        deconv2 = tf.layers.conv2d(inputs=deconv1, filters=32, kernel_size=(3,3), padding='same', activation=tf.nn.relu)
+        deconv1 = tf.layers.conv2d(inputs=upsample1, filters=64, kernel_size=(3,3), padding='same', activation=tf.nn.relu)
+        deconv2 = tf.layers.conv2d(inputs=deconv1, filters=64, kernel_size=(3,3), padding='same', activation=tf.nn.relu)
         # Now 8x8x16
         upsample2 = tf.image.resize_images(deconv2, size=(32,32), method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
         # Now 16x16x16
-        deconv3 = tf.layers.conv2d(inputs=upsample2, filters=64, kernel_size=(3,3), padding='same', activation=tf.nn.relu)
-        deconv4 = tf.layers.conv2d(inputs=deconv3, filters=64, kernel_size=(3,3), padding='same', activation=tf.nn.relu)
+        deconv3 = tf.layers.conv2d(inputs=upsample2, filters=32, kernel_size=(3,3), padding='same', activation=tf.nn.relu)
+        deconv4 = tf.layers.conv2d(inputs=deconv3, filters=32, kernel_size=(3,3), padding='same', activation=tf.nn.relu)
         # Now 32x32x64
         #upsample4 = tf.image.resize_images(deconv4, size=(32,32), method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
         # Now 32x32x32
@@ -95,9 +95,9 @@ class Autoencoder:
 
     def optimize(self):
 
-        self.loss = tf.reduce_mean(tf.square(self.y_hat - self.y)) + 0.1*self.spike_loss
+        self.loss = tf.reduce_mean(tf.square(self.y_hat - self.y)) + 10.0*self.spike_loss
 
-        optimizer = tf.train.AdamOptimizer(learning_rate=par['learning_rate'])
+        optimizer = tf.train.AdamOptimizer(learning_rate = par['learning_rate'])
         gradients = optimizer.compute_gradients(self.loss)
         self.train_op = optimizer.apply_gradients(gradients)
 
@@ -145,7 +145,7 @@ def main():
                 W = {}
                 for var in tf.trainable_variables():
                     W[var.op.name] = var.eval()
-                pickle.dump(W, open('./encoder_testing/conv_weights.pkl','wb'))
+                #pickle.dump(W, open('./encoder_testing/conv_weights.pkl','wb'))
 
 
 

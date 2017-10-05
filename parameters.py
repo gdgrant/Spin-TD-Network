@@ -18,7 +18,7 @@ par = {
     # General parameters
     'save_dir'              : './savedir/',
     'loss_function'         : 'cross_entropy',    # cross_entropy or MSE
-    'learning_rate'         : 0.002,
+    'learning_rate'         : 0.01,
     'train_top_down'        : False,
     'task'                  : 'cifar',
     'save_analysis'         : True,
@@ -30,7 +30,7 @@ par = {
     'n_td'                  : 25,
     'n_dendrites'           : 2,
     #'layer_dims'            : [28**2, 2000, 2000, 10], # mnist
-    'layer_dims'            : [2048, 1000, 1000, 10], #cifar
+    'layer_dims'            : [4096, 1000, 1000, 10], #cifar
     'dendrites_final_layer' : True,
 
     # Dropout
