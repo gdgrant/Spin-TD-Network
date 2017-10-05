@@ -31,21 +31,21 @@ class AdamOpt:
 
         self.t += 1
         lr = self.learning_rate*np.sqrt(1-self.beta2**self.t)/(1-self.beta1**self.t)
-
+        #lr = self.learning_rate
         self.update_var_op = []
 
-        for grads, var in self.gradients:
+        for (grads, _), var in zip(self.gradients, self.variables):
             new_m = self.beta1*self.m[var.op.name] + (1-self.beta1)*grads
             new_v = self.beta2*self.v[var.op.name] + (1-self.beta2)*grads*grads
             #delta_grad = - lr*gate[var.op.name]*new_m/(new_v + self.epsilon)
             delta_grad = - lr*new_m/(new_v + self.epsilon)
 
-            # update var by delta gradient
-            self.update_var_op.append(tf.assign_add(var, delta_grad))
-
             self.update_var_op.append(tf.assign(self.m[var.op.name], new_m))
             self.update_var_op.append(tf.assign(self.v[var.op.name], new_v))
+            #self.update_var_op.append(tf.assign(self.delta_grads[var.op.name], delta_grad))
             self.update_var_op.append(tf.assign(self.delta_grads[var.op.name], delta_grad))
+            self.update_var_op.append(tf.assign_add(var, delta_grad))
+
 
         return tf.group(*self.update_var_op)
 
