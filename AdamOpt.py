@@ -50,7 +50,7 @@ class AdamOpt:
             new_m = self.beta1*self.m[var.op.name] + (1-self.beta1)*grads
             new_v = self.beta2*self.v[var.op.name] + (1-self.beta2)*grads*grads
             #delta_grad = - lr*gate[var.op.name]*new_m/(new_v + self.epsilon)
-            delta_grad = - lr*new_m/(new_v + self.epsilon)
+            delta_grad = - lr*new_m/(tf.sqrt(new_v) + self.epsilon)
 
             self.update_var_op.append(tf.assign(self.m[var.op.name], new_m))
             self.update_var_op.append(tf.assign(self.v[var.op.name], new_v))
