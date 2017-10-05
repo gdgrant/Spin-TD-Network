@@ -71,12 +71,13 @@ class Stimulus:
         labels = np.reshape(np.array(x[b'fine_labels']),(-1,1))
         images = x[b'data']
 
+        self.cifar_train_images = np.vstack((self.cifar_train_images, images)) if self.cifar_train_images.size else np.array(images)
+        self.cifar_train_labels = np.vstack((self.cifar_train_labels, labels)) if self.cifar_train_labels.size else np.array(labels)
+
         x = pickle.load(open(self.cifar100_dir + 'test','rb'), encoding='bytes')
         labels = np.reshape(np.array(x[b'fine_labels']),(-1,1))
         images = x[b'data']
 
-        self.cifar_train_images = np.vstack((self.cifar_train_images, images)) if self.cifar_train_images.size else np.array(images)
-        self.cifar_train_labels = np.vstack((self.cifar_train_labels, labels)) if self.cifar_train_labels.size else np.array(labels)
         self.cifar_test_images  = np.vstack((self.cifar_test_images, images))  if self.cifar_test_images.size else np.array(images)
         self.cifar_test_labels  = np.vstack((self.cifar_test_labels, labels))  if self.cifar_test_labels.size else np.array(labels)
 
