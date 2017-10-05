@@ -3,6 +3,16 @@ import tensorflow as tf
 
 class AdamOpt:
 
+    """
+    Example of use:
+
+    optimizer = AdamOpt.AdamOpt(variables, learning_rate=self.lr)
+    self.train = optimizer.compute_gradients(self.loss, gate=0)
+    gvs = optimizer.return_gradients()
+    self.g = gvs[0][0]
+    self.v = gvs[0][1]
+    """
+
     def __init__(self, variables, learning_rate = 0.001):
 
         self.beta1 = 0.9
@@ -14,6 +24,7 @@ class AdamOpt:
 
         self.grad_descent = tf.train.GradientDescentOptimizer(learning_rate = learning_rate)
 
+
     def reset_params(self):
 
         self.m = {}
@@ -24,6 +35,7 @@ class AdamOpt:
             self.m[var.op.name]  = tf.Variable(tf.zeros(var.get_shape()), trainable=False)
             self.v[var.op.name]  = tf.Variable(tf.zeros(var.get_shape()), trainable=False)
             self.delta_grads[var.op.name]  = tf.Variable(tf.zeros(var.get_shape()), trainable=False)
+
 
     def compute_gradients(self, loss, gate):
 
@@ -46,22 +58,20 @@ class AdamOpt:
             self.update_var_op.append(tf.assign(self.delta_grads[var.op.name], delta_grad))
             self.update_var_op.append(tf.assign_add(var, delta_grad))
 
-
         return tf.group(*self.update_var_op)
 
 
-
     def return_delta_grads(self):
-
         return self.delta_grads
+
 
     def return_means(self):
-
         return self.delta_grads
 
-    def return_gradients(self):
 
+    def return_gradients(self):
         return self.gradients
+
 
     def apply_gradients(self, loss, gate):
 
