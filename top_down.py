@@ -86,7 +86,7 @@ class ConvolutionalLayers:
 
         # Create placeholders for the model
         input_data  = tf.placeholder(tf.float32, [par['batch_size'], 32, 32, 3], 'stim')
-        target_data  = tf.placeholder(tf.float32, [par['batch_size'], 10], 'target')
+        target_data  = tf.placeholder(tf.float32, [par['batch_size'], 100], 'target')
         top_down  = tf.placeholder(tf.float32, [par['batch_size'], par['n_td']], 'TD')
 
         print('Batch size:', par['batch_size'])
@@ -103,8 +103,9 @@ class ConvolutionalLayers:
 
             for i in range(2500):
 
-                x, y, td = s.make_batch(task_id, test=False)
+                x, y, td, m = s.make_batch(task_id, test=False)
                 _, loss, spike_loss  = sess.run([self.train_op, self.loss, self.spike_loss], feed_dict = {input_data:x, target_data: y, top_down: td})
+                print(i, end='\r')
 
                 if i%100 == 0:
                     print('', str(i).ljust(5), '|', str(task_id).ljust(4), '|', loss, '|', spike_loss)
