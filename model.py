@@ -193,7 +193,7 @@ class Model:
                 self.train_op = adam_optimizer.compute_gradients(self.total_loss + par['omega_c']*self.aux_loss, gates)
                 self.task_op = adam_optimizer_task.compute_gradients(self.task_loss, gates)
                 self.delta_grads = adam_optimizer_task.return_delta_grads()
-                self.gradients = adam_optimizer_task.return_gradients()
+                self.gradients = adam_optimizer_task.return_grads_and_vars()
             else:
                 adam_grads_and_vars = adam_optimizer.compute_gradients(self.total_loss + par['omega_c']*self.aux_loss)
                 self.delta_grads = []
@@ -217,7 +217,7 @@ class Model:
                 #for var in variables:
                     print(var.op.name)
                     #update_small_omega_ops.append( tf.assign_add( small_omega_var[var.op.name], -self.delta_grads[var.op.name]*grad ) )
-                    update_small_omega_ops.append( tf.assign_add( small_omega_var[var.op.name], gates[var.op.name]*self.learning_rate*grad*grad ) )
+                    update_small_omega_ops.append( tf.assign_add( small_omega_var[var.op.name], gates[var.op.name]*par['learning_rate']*grad*grad ) )
                     #update_small_omega_ops.append( tf.assign_add( small_omega_var[var.op.name], gates[var.op.name]*self.delta_grads[var.op.name]*self.delta_grads[var.op.name]/par['learning_rate'] ) )
             else:
                 for (grad,var), g_adam in zip(grads_and_vars, self.delta_grads):
