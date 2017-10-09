@@ -71,8 +71,7 @@ class Model:
         self.spike_loss = 0
         self.td_gating = []
 
-        for n in range(par['n_layers']-1):
-            scope_name = 'layer' + str(n)
+        for scope_name in ['layer'+str(n) for n in range(par['n_layers']-1)]:
             with tf.variable_scope(scope_name):
                 if n < par['n_layers']-2 or par['dendrites_final_layer']:
                     W = tf.get_variable('W', initializer = tf.random_uniform([par['layer_dims'][n],par['n_dendrites'],par['layer_dims'][n+1]], -1.0/np.sqrt(par['layer_dims'][n]), 1.0/np.sqrt(par['layer_dims'][n])), trainable = True)
@@ -116,7 +115,8 @@ class Model:
         # Use all trainable variables, except those in the convolutional layers
         #variables = [var for var in tf.trainable_variables() if not var.op.name.find('conv')==0]
         variables = [var for var in tf.trainable_variables() if not var.op.name.find('conv')==0]
-        print('variables ', variables)
+        print('Trainable Variables:')
+        [print(v) for v in variables]
 
         if adam_opt_method:
             adam_optimizer = AdamOpt.AdamOpt(variables, learning_rate = par['learning_rate'])
@@ -251,8 +251,8 @@ def main():
     elif par['task'] == 'cifar':
         x  = tf.placeholder(tf.float32, [par['batch_size'], 32, 32, 3], 'stim')
     td  = tf.placeholder(tf.float32, [par['batch_size'], par['n_td']], 'TD')
-    y   = tf.placeholder(tf.float32, [ par['batch_size'], par['layer_dims'][-1]], 'out')
-    mask   = tf.placeholder(tf.float32, [ par['batch_size'], par['layer_dims'][-1]], 'mask')
+    y   = tf.placeholder(tf.float32, [par['batch_size'], par['layer_dims'][-1]], 'out')
+    mask   = tf.placeholder(tf.float32, [par['batch_size'], par['layer_dims'][-1]], 'mask')
     droput_keep_pct = tf.placeholder(tf.float32, [] , 'dropout')
 
 
@@ -304,18 +304,11 @@ def main():
                 sess.run(model.reset_adam_op)
                 sess.run(model.reset_small_omega)
 
-            if par['task']=='mnist':
+            if par['task']=='mnist' or (par['task']=='cifar' and task > -1):
                 accuracy = np.zeros((task+1))
                 for test_task in range(task+1):
                     stim_in, y_hat, td_in = stim.make_batch(test_task, test = True)
                     accuracy[test_task] = sess.run(model.accuracy, feed_dict={x:stim_in, td:td_in, y:y_hat, mask:mk,droput_keep_pct:1.0})
-
-            elif par['task']=='cifar' and task > -1:
-                accuracy = np.zeros((task+1))
-                for test_task in range(0,task+1):
-                    stim_in, y_hat, td_in, mk = stim.make_batch(test_task, test = True)
-                    accuracy[test_task] = sess.run(model.accuracy, feed_dict={x:stim_in, td:td_in, y:y_hat, mask:mk, droput_keep_pct:1.0})
-
             else:
                 accuracy = [-1]
 
@@ -324,8 +317,6 @@ def main():
             if par['save_analysis'] and (par['task']=='mnist' or (par['task']=='cifar' and task > 0)):
                 save_results = {'task': task, 'accuracy': accuracy, 'big_omegas': big_omegas, 'par': par}
                 pickle.dump(save_results, open(par['save_dir'] + 'analysis.pkl', 'wb'))
-
-
 
     print('\nModel execution complete.')
 
