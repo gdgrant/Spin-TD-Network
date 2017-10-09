@@ -18,37 +18,37 @@ par = {
     # General parameters
     'save_dir'              : './savedir/',
     'loss_function'         : 'cross_entropy',    # cross_entropy or MSE
-    'learning_rate'         : 0.01,
-    'train_top_down'        : False,
+    'learning_rate'         : 0.001,
+    'train_top_down'        : True,
     'task'                  : 'cifar',
     'save_analysis'         : True,
+    'train_convolutional_layers' : False,
 
     # Task specs
     'n_tasks'               : 10,
 
     # Network shape
-    'n_td'                  : 25,
+    'n_td'                  : 35,
     'n_dendrites'           : 2,
-    #'layer_dims'            : [28**2, 2000, 2000, 10], # mnist
-    'layer_dims'            : [4096, 1000, 1000, 10], #cifar
-    'dendrites_final_layer' : True,
+    #'layer_dims'            : [28**2, 400, 400, 10], # mnist
+    'layer_dims'            : [4096, 1000, 1000, 100], #cifar
+    'dendrites_final_layer' : False,
 
     # Dropout
     'keep_pct'              : 1.0,
 
     # Training specs
     'batch_size'            : 1024,
-    'n_train_batches'       : 1500,
+    'n_train_batches'       : 1000,
     'n_batches_top_down'    : 15000,
 
     # Omega parameters
-    'omega_c'               : 0.1,
-    'omega_xi'              : 0.1,
+    'omega_c'               : 1,
+    'omega_xi'              : 0.001,
 
     # Projection of top-down activity
     # Only one can be True
     'clamp'                 : 'dendrites', # can be either 'dendrites' or 'neurons' or None
-    'n_clamp'                : 5
 
 }
 

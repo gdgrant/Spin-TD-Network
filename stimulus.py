@@ -9,7 +9,7 @@ import pickle
 
 class Stimulus:
 
-    def __init__(self):
+    def __init__(self, include_cifar10 = False):
         if par['task'] == 'mnist':
             self.generate_mnist_tuning()
         elif par['task'] == 'cifar':
@@ -17,7 +17,7 @@ class Stimulus:
             self.cifar100_dir = './cifar/cifar-100-python/'
             self.num_cifar_labels = 110
             self.cifar_labels_per_task = 10
-            self.generate_cifar_tuning()
+            self.generate_cifar_tuning(include_cifar10)
             self.find_cifar_indices()
 
 
@@ -39,7 +39,7 @@ class Stimulus:
             self.mnist_permutation.append(np.random.permutation(784))
 
 
-    def generate_cifar_tuning(self):
+    def generate_cifar_tuning(self, include_cifar10 = False):
 
         self.cifar_train_images = np.array([])
         self.cifar_train_labels = np.array([])
@@ -49,7 +49,7 @@ class Stimulus:
         """
         Load CIFAR-10 data
         """
-        if False:
+        if include_cifar10:
             ########################
             ### Currently unused ###
             for i in range(5):
@@ -102,18 +102,23 @@ class Stimulus:
 
         # Pick out batch data and labels
         batch_data   = np.zeros((par['batch_size'], 32,32,3), dtype = np.float32)
-        batch_labels = np.zeros((par['batch_size'], self.cifar_labels_per_task), dtype = np.float32)
+        batch_labels = np.zeros((par['batch_size'], par['layer_dims'][-1]), dtype = np.float32)
+        mask = np.zeros((par['batch_size'], par['layer_dims'][-1]), dtype = np.float32)
+        mask[:, task_num*self.cifar_labels_per_task:(task_num+1)*self.cifar_labels_per_task] = 1
+
         for i in range(par['batch_size']):
             if test:
-                k = int(self.cifar_test_labels[ind[q[i]]] - task_num*self.cifar_labels_per_task)
+                #k = int(self.cifar_test_labels[ind[q[i]]] - task_num*self.cifar_labels_per_task)
+                k = int(self.cifar_test_labels[ind[q[i]]])
                 batch_labels[i, k] = 1
                 batch_data[i, :] = np.float32(np.reshape(self.cifar_test_images[ind[q[i]], :],(1,32,32,3), order='F'))/255
             else:
-                k = int(self.cifar_train_labels[ind[q[i]]] - task_num*self.cifar_labels_per_task)
+                #k = int(self.cifar_train_labels[ind[q[i]]] - task_num*self.cifar_labels_per_task)
+                k = int(self.cifar_train_labels[ind[q[i]]])
                 batch_labels[i, k] = 1
                 batch_data[i, :] = np.float32(np.reshape(self.cifar_train_images[ind[q[i]], :],(1,32,32,3), order='F'))/255
 
-        return batch_data, batch_labels
+        return batch_data, batch_labels, mask
 
 
     def generate_mnist_batch(self, task_num, test = False):
@@ -145,16 +150,17 @@ class Stimulus:
 
         if par['task'] == 'mnist':
             batch_data, batch_labels = self.generate_mnist_batch(task_num, test)
+            mask = 1
         elif par['task'] == 'cifar':
-            batch_data, batch_labels = self.generate_cifar_batch(task_num, test)
+            batch_data, batch_labels, mask = self.generate_cifar_batch(task_num, test)
         else:
             raise Exception('Unrecognized task')
 
         ### Currently unused ###
-        if False and par['task'] == 'cifar' and task_num>0:
-            task_num -= 1 # because we're not evaluating accuracy on task 0
+        #if False and par['task'] == 'cifar' and task_num>0:
+            #task_num -= 1 # because we're not evaluating accuracy on task 0
 
         # Create top_down activity
         top_down = np.tile(np.reshape(par['td_cases'][task_num, :],(1,-1)),(par['batch_size'],1))
 
-        return batch_data, batch_labels, top_down
+        return batch_data, batch_labels, top_down, mask
