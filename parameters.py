@@ -25,17 +25,18 @@ par = {
 
     # Task specs
     'n_tasks'               : 10,
+    'samples_per_trial'     : 10,
+    'dead_time'             : 10,
+    'steps_per_input'       : 20,
+    'n_input_phases'        : 7,
 
     # Network shape
     'n_td'                  : 35,
     'n_dendrites'           : 2,
-    'n_input'               : 370,
+    'n_inputs'              : 370,
     'n_hidden'              : 50,
     'n_output'              : 10,
     'dendrites_final_layer' : False,
-
-    # Dropout
-    'keep_pct'              : 1.0,
 
     # Training specs
     'batch_size'            : 200,
@@ -120,9 +121,7 @@ def update_dependencies():
     Updates all parameter dependencies
     """
 
-    par['n_layers'] = len(par['layer_dims'])
-    gen_td_cases()
-    gen_td_targets()
+    par['n_steps'] = par['dead_time'] + par['steps_per_input']*par['n_input_phases']
 
 
 def update_parameters(updates):
