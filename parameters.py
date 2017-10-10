@@ -26,12 +26,14 @@ par = {
     # Task specs
     'n_tasks'               : 10,
     'samples_per_trial'     : 10,
+    'cue_space_size'        : 26,
+    'sample_space_size'     : 10,
     'dead_time'             : 10,
     'steps_per_input'       : 20,
     'n_input_phases'        : 7,
 
     # Network shape
-    'n_td'                  : 35,
+    'n_td'                  : 10,
     'n_dendrites'           : 2,
     'n_inputs'              : 370,
     'n_hidden'              : 50,
@@ -39,7 +41,7 @@ par = {
     'dendrites_final_layer' : False,
 
     # Training specs
-    'batch_size'            : 200,
+    'batch_size'            : 8,
     'n_train_batches'       : 1000,
     'n_batches_top_down'    : 15000,
 
