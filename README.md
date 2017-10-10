@@ -1,2 +1,2 @@
 # Spin-TD-Network
-ANN with multiplicative TD pre-training.
+RNN with multiplicative TD pre-training, training on the associated retrieval task with permutations.

@@ -35,39 +35,6 @@ class Model:
 
     def run_model(self):
 
-        if par['task'] == 'cifar':
-            print('INPUT', self.input_data)
-
-            conv_weights = pickle.load(open('./encoder_testing/conv_weights.pkl','rb'))
-            print(conv_weights['conv2d/bias'])
-            #conv1 = tf.nn.relu(tf.nn.conv2d(input=self.input_data, filter=conv_weights['conv2d/kernel'],strides=[1,1,1,1],padding='SAME'))
-
-            conv1 = tf.layers.conv2d(inputs=self.input_data,filters=32, kernel_size=[3, 3], kernel_initializer = \
-                tf.constant_initializer(conv_weights['conv2d/kernel']),  bias_initializer = tf.constant_initializer(conv_weights['conv2d/bias']), \
-                strides=1, activation=tf.nn.relu, padding = 'SAME')
-
-
-            conv2 = tf.layers.conv2d(inputs=conv1,filters=32, kernel_size=[3, 3], kernel_initializer = \
-                tf.constant_initializer(conv_weights['conv2d_1/kernel']),  bias_initializer = tf.constant_initializer(conv_weights['conv2d_1/bias']), \
-                strides=1, activation=tf.nn.relu, padding = 'SAME')
-
-            conv2 = tf.layers.max_pooling2d(inputs=conv2, pool_size=[2, 2], strides=2, padding='SAME')
-
-            conv3 = tf.layers.conv2d(inputs=conv2,filters=64, kernel_size=[3, 3], kernel_initializer = \
-                tf.constant_initializer(conv_weights['conv2d_2/kernel']),  bias_initializer = tf.constant_initializer(conv_weights['conv2d_2/bias']), \
-                strides=1, activation=tf.nn.relu, padding = 'SAME')
-
-            conv4 = tf.layers.conv2d(inputs=conv3,filters=64, kernel_size=[3, 3], kernel_initializer = \
-                tf.constant_initializer(conv_weights['conv2d_3/kernel']),  bias_initializer = tf.constant_initializer(conv_weights['conv2d_3/bias']), \
-                strides=1, activation=tf.nn.relu, padding = 'SAME')
-
-            conv4 = tf.layers.max_pooling2d(inputs=conv4, pool_size=[2, 2], strides=2, padding='SAME')
-
-            self.x = tf.reshape(conv4,[par['batch_size'], -1])
-
-        elif par['task'] == 'mnist':
-            self.x = self.input_data
-
         self.spike_loss = 0
         self.td_gating = []
 
