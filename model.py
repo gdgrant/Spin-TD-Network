@@ -16,59 +16,58 @@ os.environ['TF_CPP_MIN_LOG_LEVEL']='2'
 ###################
 class Model:
 
-    def __init__(self, input_data, td_data, target_data, mask, droput_keep_pct):
+    def __init__(self, input_data, td_data, target_data):
 
-        # Load the input activity, the target data, and the training mask
+        # Load the input activity, the target data, and the time mask
         # for this batch of trials
-        self.input_data         = input_data
-        self.td_data            = td_data
+        self.input_data         = tf.unstack(input_data)
+        self.td_data            = tf.unstack(td_data)
         self.target_data        = target_data
-        self.droput_keep_pct    = droput_keep_pct
-        self.mask               = mask
+        self.time_mask          = tf.constant(par['output_time_mask'])
 
         # Build the TensorFlow graph
         self.run_model()
 
         # Train the model
-        self.optimize()
+        #self.optimize()
 
 
     def run_model(self):
 
-        self.spike_loss = 0
-        self.td_gating = []
+        W_in  = tf.get_variable('W_in',  initializer=np.float32(par['W_in0']))
+        W_td  = tf.get_variable('W_td',  initializer=np.float32(par['W_td0']))
+        W_out = tf.get_variable('W_out', initializer=np.float32(par['W_out0']))
 
-        for scope_name in ['layer'+str(n) for n in range(par['n_layers']-1)]:
-            with tf.variable_scope(scope_name):
-                if n < par['n_layers']-2 or par['dendrites_final_layer']:
-                    W = tf.get_variable('W', initializer = tf.random_uniform([par['layer_dims'][n],par['n_dendrites'],par['layer_dims'][n+1]], -1.0/np.sqrt(par['layer_dims'][n]), 1.0/np.sqrt(par['layer_dims'][n])), trainable = True)
-                    b = tf.get_variable('b', initializer = tf.zeros([1,par['n_dendrites'],par['layer_dims'][n+1]]), trainable = True)
-                    W_td = tf.get_variable('W_td', initializer = par['W_td0'][n], trainable = False)
+        b_hid = tf.get_variable('b_hid', initializer=tf.zeros([1,par['n_hidden']]))
+        b_out = tf.get_variable('b_out', initializer=tf.zeros([1,par['n_output']]))
 
-                    if par['clamp'] == 'dendrites':
-                        self.td_gating.append(tf.nn.softmax(tf.tensordot(self.td_data, W_td, ([1],[0])), dim = 1))
-                    elif par['clamp'] == 'neurons':
-                        self.td_gating.append(tf.tensordot(self.td_data, W_td, ([1],[0])))
-                else:
-                    # final layer -> no dendrites
-                    W = tf.get_variable('W', initializer = tf.random_uniform([par['layer_dims'][n],par['layer_dims'][n+1]], -1/np.sqrt(par['layer_dims'][n]), 1/np.sqrt(par['layer_dims'][n])), trainable = True)
-                    b = tf.get_variable('b', initializer = tf.zeros([1,par['layer_dims'][n+1]]), trainable = True)
+        d = []  # Dendrite activity logging across time
+        h = []  # Hidden layer activity logging across time
+        y = []  # Output activity logging across time
 
+        h_val = tf.constant(0.)
+        for (t, x), (_, td) in zip(enumerate(self.input_data), enumerate(self.td_data)):
 
-                if n < par['n_layers']-2:
-                    dend_activity = tf.nn.relu(tf.tensordot(self.x, W, ([1],[0]))  + b)
-                    self.x = tf.nn.dropout(tf.reduce_sum(dend_activity*self.td_gating[n], axis=1), self.droput_keep_pct)
+            d_in = tf.tensordot(W_in, x, ([2],[0]))
+            d_td = tf.tensordot(W_td, td, ([2],[0]))
+            d_act = d_in * d_td
+            d.append(d_act)
 
-                    self.spike_loss += tf.reduce_sum(self.x)
+            h_act = tf.reduce_sum(d_act, 1)
+            h.append(h_act)
 
-                else:
-                    if par['dendrites_final_layer']:
-                        dend_activity = tf.tensordot(self.x, W, ([1],[0])) + b
-                        self.y = tf.nn.softmax(tf.reduce_sum(dend_activity*self.td_gating[n], axis=1), dim = 1)
-                        print('Y',self.y)
-                    else:
-                        self.y = tf.nn.softmax(tf.matmul(self.x,W) + b, dim = 1)
-                        print('Y',self.y)
+            y_act = tf.matmul(W_out, h_act)
+            y.append(y_act)
+
+        print('Stimulus:     ', x.shape)
+        print('Top-Down:     ', td.shape)
+        print('Dendrites:    ', d_act.shape)
+        print('Hidden layer: ', h_act.shape)
+        print('Output layer: ', y_act.shape)
+
+        self.d = tf.stack(d)
+        self.h = tf.stack(h)
+        self.y = tf.stack(y)
 
 
     def optimize(self):
@@ -201,10 +200,7 @@ class Model:
 
 def main():
 
-    determine_top_down_weights()
-
-    if par['task'] == 'cifar' and par['train_convolutional_layers']:
-        top_down.ConvolutionalLayers()
+    #determine_top_down_weights()
 
     print('\nRunning model.\n')
 
@@ -213,77 +209,78 @@ def main():
 
     # Create placeholders for the model
     # input_data, td_data, target_data, learning_rate, stim_train
-    if par['task'] == 'mnist':
-        x  = tf.placeholder(tf.float32, [par['batch_size'], par['layer_dims'][0]], 'stim')
-    elif par['task'] == 'cifar':
-        x  = tf.placeholder(tf.float32, [par['batch_size'], 32, 32, 3], 'stim')
-    td  = tf.placeholder(tf.float32, [par['batch_size'], par['n_td']], 'TD')
-    y   = tf.placeholder(tf.float32, [par['batch_size'], par['layer_dims'][-1]], 'out')
-    mask   = tf.placeholder(tf.float32, [par['batch_size'], par['layer_dims'][-1]], 'mask')
-    droput_keep_pct = tf.placeholder(tf.float32, [] , 'dropout')
-
+    x   = tf.placeholder(tf.float32, par['stim_shape'], 'stim')
+    td  = tf.placeholder(tf.float32, par['td_shape'], 'TD')
+    y   = tf.placeholder(tf.float32, par['output_shape'], 'out')
 
     stim = stimulus.Stimulus()
 
 
     with tf.Session() as sess:
 
-        model = Model(x, td, y, mask, droput_keep_pct)
+        model = Model(x, td, y)
         sess.run(tf.global_variables_initializer())
         t_start = time.time()
-        sess.run(model.reset_small_omega)
+        #sess.run(model.reset_small_omega)
 
-        for task in range(0,par['n_tasks']):
+        print('')
+        for i in range(par['n_train_batches']):
 
-            #gate = 1 if (par['task'] == 'mnist' or task == 0) else 0
-            gate = 0
-            keep_pct = par['keep_pct'] if (par['task'] == 'mnist' or task > 0) else 1.0
-            #gate = 1
+            x_all, y_hat = stim.make_batch(0)
+            x_st   = x_all[:,:par['n_input'],:]
+            x_td   = x_all[:,par['n_input']:,:]
 
-            for i in range(par['n_train_batches']):
+            d, h, y_out = sess.run([model.d, model.h, model.y],
+                         feed_dict={x:x_st, td:x_td, y: y_hat})
 
-                stim_in, y_hat, td_in, mk = stim.make_batch(task, test = False)
-                #sess.run(model.update_gate, feed_dict={td:td_in})
+            print(str(i).ljust(3), np.mean(d), np.mean(h), np.mean(y_out))
 
 
-                #stim_in += np.random.normal(0,0.02,size=stim_in.shape)
-                #print(stim_in.shape, y_hat.shape, td_in.shape, np.mean(td_in,axis=0))
 
-                if par['omega_c'] > 0:
 
-                    _,_,loss,spike_loss,_,AL,_ = sess.run([model.update_gate, model.train_op,model.task_loss,model.spike_loss, \
-                    model.update_small_omega, model.aux_loss, model.task_op], feed_dict={x:stim_in, td:td_in, y:y_hat, mask:mk, droput_keep_pct:keep_pct})
-                else:
-                    sess.run(model.train_op, feed_dict={x:stim_in, td:td_in, y:y_hat, droput_keep_pct: par['keep_pct'], \
-                        learning_rate: lr, gate_conv: gate})
 
-                if i//100 == i/100:
-                    if task == 0:
-                        print(i, loss, spike_loss, AL)
-                    else:
-                        big_om = [np.mean(bo) for bo in big_omegas.values()]
-                        print(i, loss, AL, big_om)
 
-            # if training on the cifar task, don't update omegas on the 0th task
-            if par['omega_c'] > 0:
-                sess.run(model.update_big_omega,feed_dict={td:td_in})
-                big_omegas = sess.run(model.big_omega_var)
-                sess.run(model.reset_adam_op)
-                sess.run(model.reset_small_omega)
+            #sess.run(model.update_gate, feed_dict={td:td_in})
 
-            if par['task']=='mnist' or (par['task']=='cifar' and task > -1):
-                accuracy = np.zeros((task+1))
-                for test_task in range(task+1):
-                    stim_in, y_hat, td_in = stim.make_batch(test_task, test = True)
-                    accuracy[test_task] = sess.run(model.accuracy, feed_dict={x:stim_in, td:td_in, y:y_hat, mask:mk,droput_keep_pct:1.0})
-            else:
-                accuracy = [-1]
 
-            print('Task ',task, ' Mean ', np.mean(accuracy), ' First ', accuracy[0], ' Last ', accuracy[-1])
+            #stim_in += np.random.normal(0,0.02,size=stim_in.shape)
+            #print(stim_in.shape, y_hat.shape, td_in.shape, np.mean(td_in,axis=0))
 
-            if par['save_analysis'] and (par['task']=='mnist' or (par['task']=='cifar' and task > 0)):
-                save_results = {'task': task, 'accuracy': accuracy, 'big_omegas': big_omegas, 'par': par}
-                pickle.dump(save_results, open(par['save_dir'] + 'analysis.pkl', 'wb'))
+            #if par['omega_c'] > 0:
+            #
+            #    _,_,loss,spike_loss,_,AL,_ = sess.run([model.update_gate, model.train_op,model.task_loss,model.spike_loss, \
+            #    model.update_small_omega, model.aux_loss, model.task_op], feed_dict={x:stim_in, td:td_in, y:y_hat, mask:mk, droput_keep_pct:keep_pct})
+            #else:
+            #    sess.run(model.train_op, feed_dict={x:stim_in, td:td_in, y:y_hat, droput_keep_pct: par['keep_pct'], \
+            #        learning_rate: lr, gate_conv: gate})
+            #
+            #if i//100 == i/100:
+            #    if task == 0:
+            #        print(i, loss, spike_loss, AL)
+            #    else:
+            #        big_om = [np.mean(bo) for bo in big_omegas.values()]
+            #        print(i, loss, AL, big_om)
+
+        # if training on the cifar task, don't update omegas on the 0th task
+        #if par['omega_c'] > 0:
+        #    sess.run(model.update_big_omega,feed_dict={td:td_in})
+        #    big_omegas = sess.run(model.big_omega_var)
+        #    sess.run(model.reset_adam_op)
+        #    sess.run(model.reset_small_omega)
+        #
+        #if par['task']=='mnist' or (par['task']=='cifar' and task > -1):
+        #    accuracy = np.zeros((task+1))
+        #    for test_task in range(task+1):
+        #        stim_in, y_hat, td_in = stim.make_batch(test_task, test = True)
+        #        accuracy[test_task] = sess.run(model.accuracy, feed_dict={x:stim_in, td:td_in, y:y_hat, mask:mk,droput_keep_pct:1.0})
+        #else:
+        #    accuracy = [-1]
+        #
+        #print('Task ',task, ' Mean ', np.mean(accuracy), ' First ', accuracy[0], ' Last ', accuracy[-1])
+        #
+        #if par['save_analysis'] and (par['task']=='mnist' or (par['task']=='cifar' and task > 0)):
+        #    save_results = {'task': task, 'accuracy': accuracy, 'big_omegas': big_omegas, 'par': par}
+        #    pickle.dump(save_results, open(par['save_dir'] + 'analysis.pkl', 'wb'))
 
     print('\nModel execution complete.')
 

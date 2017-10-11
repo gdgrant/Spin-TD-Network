@@ -20,14 +20,14 @@ par = {
     'loss_function'         : 'cross_entropy',    # cross_entropy or MSE
     'learning_rate'         : 0.001,
     'train_top_down'        : False,
-    'task'                  : 'cifar',
+    'task'                  : 'AR',
     'save_analysis'         : True,
 
     # Task specs
     'n_tasks'               : 10,   # Number of pairwise variations
     'samples_per_trial'     : 10,   # Half the total number of presented pairs
     'cue_space_size'        : 26,   # Number of letters
-    'sample_space_size'     : 20,   # Number of numbers
+    'sample_space_size'     : 10,   # Number of numbers
     'blank_character_size'  : 10,   # Number of inputs assigned to the blank character
     'dead_time'             : 10,   # Inactive time steps before any stimulus
     'steps_per_input'       : 20,   # Number of time steps for each input phase
@@ -41,7 +41,7 @@ par = {
 
     # Training specs
     'batch_size'            : 8,
-    'n_train_batches'       : 1000,
+    'n_train_batches'       : 100,
     'n_batches_top_down'    : 15000,
 
     # Omega parameters
@@ -121,20 +121,33 @@ def update_dependencies():
     """
     Updates all parameter dependencies
     """
-    par['n_inputs'] = par['samples_per_trial'] \
+    par['n_input'] = par['samples_per_trial'] \
                       * (par['cue_space_size'] + par['sample_space_size']) \
                       + par['blank_character_size']
     par['n_output'] = par['sample_space_size']
     par['n_steps']  = par['dead_time'] + par['steps_per_input']*par['n_input_phases']
 
-    par['input_shape']  = [par['n_steps'], par['n_inputs']+par['n_td'], par['batch_size']]
+    par['input_shape']  = [par['n_steps'], par['n_input']+par['n_td'], par['batch_size']]
+    par['stim_shape']   = [par['n_steps'], par['n_input'], par['batch_size']]
+    par['td_shape']     = [par['n_steps'], par['n_td'], par['batch_size']]
     par['output_shape'] = [par['n_steps'], par['n_output'], par['batch_size']]
+
+    par['input_to_hidden_dims']  = [par['n_hidden'], par['n_dendrites'], par['n_input']]
+    par['td_to_hidden_dims']     = [par['n_hidden'], par['n_dendrites'], par['n_td']]
+    par['hidden_to_output_dims'] = [par['n_output'], par['n_hidden']]
 
     gen_td_cases()
     gen_td_targets()
 
     par['output_time_mask'] = np.ones(par['output_shape'])
     par['output_time_mask'][:par['dead_time'],:,:] = 0.
+
+    norm1 = 1./np.sqrt(par['n_input'])
+    norm2 = 1./np.sqrt(par['n_td'])
+    norm3 = 1./np.sqrt(par['n_hidden'])
+    par['W_in0']  = np.random.uniform(-norm1, norm1, par['input_to_hidden_dims'])
+    par['W_td0']  = np.random.uniform(-norm2, norm2, par['td_to_hidden_dims'])
+    par['W_out0'] = np.random.uniform(-norm3, norm3, par['hidden_to_output_dims'])
 
 
 def update_parameters(updates):
