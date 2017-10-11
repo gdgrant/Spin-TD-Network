@@ -24,20 +24,19 @@ par = {
     'save_analysis'         : True,
 
     # Task specs
-    'n_tasks'               : 10,
-    'samples_per_trial'     : 10,
-    'cue_space_size'        : 26,
-    'sample_space_size'     : 10,
-    'dead_time'             : 10,
-    'steps_per_input'       : 20,
-    'n_input_phases'        : 7,
+    'n_tasks'               : 10,   # Number of pairwise variations
+    'samples_per_trial'     : 10,   # Half the total number of presented pairs
+    'cue_space_size'        : 26,   # Number of letters
+    'sample_space_size'     : 20,   # Number of numbers
+    'blank_character_size'  : 10,   # Number of inputs assigned to the blank character
+    'dead_time'             : 10,   # Inactive time steps before any stimulus
+    'steps_per_input'       : 20,   # Number of time steps for each input phase
+    'n_input_phases'        : 7,    # Precisely what it says -- this is fixed
 
     # Network shape
     'n_td'                  : 10,
     'n_dendrites'           : 2,
-    'n_inputs'              : 370,
     'n_hidden'              : 50,
-    'n_output'              : 10,
     'dendrites_final_layer' : False,
 
     # Training specs
@@ -96,34 +95,46 @@ def gen_td_cases():
                             break
                 par['td_cases'][i, :] = potential_tuning
 
+
 def gen_td_targets():
 
-    par['td_targets'] = []
-    for n in range(par['n_layers']-1):
-        td = np.zeros((par['n_tasks'],par['n_dendrites'], par['layer_dims'][n+1]), dtype = np.float32)
-        for i in range(par['layer_dims'][n+1]):
+    # Currently only applies to hidden layer!
 
-            if par['clamp'] == 'dendrites':
-                for t in range(0, par['n_tasks'], par['n_dendrites']):
-                    q = np.random.permutation(par['n_dendrites'])
-                    for j, d in enumerate(q):
-                        if t+j<par['n_tasks']:
-                            td[t+j,d,i] = 1
+    td = np.zeros((par['n_tasks'], par['n_dendrites'], par['n_hidden']), dtype=np.float32)
+    for i in range(par['n_hidden']):
+        if par['clamp'] == 'dendrites':
+            for t in range(0, par['n_tasks'], par['n_dendrites']):
+                q = np.random.permutation(par['n_dendrites'])
+                for j, d in enumerate(q):
+                    if t+j<par['n_tasks']:
+                        td[t+j,d,i] = 1
 
-            elif par['clamp'] == 'neurons':
-                for t in range(par['n_tasks']):
-                    if t%par['n_td'] == i%par['n_td']:
-                        td[t,:,i] = 1
+        elif par['clamp'] == 'neurons':
+            for t in range(par['n_tasks']):
+                if t%par['n_td'] == i%par['n_td']:
+                    td[t,:,i] = 1
 
-        par['td_targets'].append(td)
+    par['td_targets'] = td
 
 
 def update_dependencies():
     """
     Updates all parameter dependencies
     """
+    par['n_inputs'] = par['samples_per_trial'] \
+                      * (par['cue_space_size'] + par['sample_space_size']) \
+                      + par['blank_character_size']
+    par['n_output'] = par['sample_space_size']
+    par['n_steps']  = par['dead_time'] + par['steps_per_input']*par['n_input_phases']
 
-    par['n_steps'] = par['dead_time'] + par['steps_per_input']*par['n_input_phases']
+    par['input_shape']  = [par['n_steps'], par['n_inputs']+par['n_td'], par['batch_size']]
+    par['output_shape'] = [par['n_steps'], par['n_output'], par['batch_size']]
+
+    gen_td_cases()
+    gen_td_targets()
+
+    par['output_time_mask'] = np.ones(par['output_shape'])
+    par['output_time_mask'][:par['dead_time'],:,:] = 0.
 
 
 def update_parameters(updates):

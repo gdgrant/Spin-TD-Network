@@ -21,13 +21,14 @@ t = 6 : response    (2)
 import numpy as np
 from parameters import *
 import matplotlib.pyplot as plt
+import time
 
 
 class Stimulus:
 
     def __init__(self):
-        self.input_shape  = [par['n_steps'], par['n_inputs']+par['n_td'], par['batch_size']]
-        self.output_shape = [par['n_steps'], par['n_output'], par['batch_size']]
+        self.input_shape  = par['input_shape']
+        self.output_shape = par['output_shape']
 
         self.blank_character()
         self.timeline()
@@ -59,10 +60,13 @@ class Stimulus:
         v[n] = 1
         return v
 
-    def split(self, a):
-        print('Splitting')
-        print(a)
-        quit()
+
+    def split_1d(self, a):
+        if a.shape[0]//2 != a.shape[0]/2:
+            raise Exception('Bad split_1d size.  Use even number of elements')
+        if len(a.shape) != 1:
+            raise Exception('Bad split_1d size.  Use 1d array.')
+        return a[:a.shape[0]//2], a[a.shape[0]//2:]
 
 
     def get_input_sets(self):
@@ -87,31 +91,38 @@ class Stimulus:
         end_of_samples = end_of_cues + par['samples_per_trial']*par['sample_space_size']
 
         # Blank character
-        batch[self.t[4]:self.t[5],end_of_samples:end_of_samples+10,:] = 1.
+        batch[self.t[4]:self.t[5],end_of_samples:end_of_samples+par['blank_character_size'],:] = 1.
 
         # TD input
-        batch[:,-par['n_td']:,:] = self.id_to_vector(task_id, par['n_td'])[np.newaxis,:,np.newaxis]
-        print('Batching')
+        batch[:, -par['n_td']:,:] = par['td_cases'][task_id][np.newaxis,:,np.newaxis]
+
+        # Create each batch
         for b in range(par['batch_size']):
-            for (lid, l), (nid, n) in zip(enumerate(letters[:,2*b:2*b+2]), enumerate(numbers[:,2*b:2*b+2])):
+            let = self.split_1d(letters[:,b])
+            num = self.split_1d(numbers[:,b])
+
+            for (lid, l), (nid, n) in zip(enumerate(let[0]), enumerate(num[0])):
                 la = lid     * par['cue_space_size']
                 lb = (lid+1) * par['cue_space_size']
                 na = nid     * par['sample_space_size'] + end_of_cues
                 nb = (nid+1) * par['sample_space_size'] + end_of_cues
 
-                l1 = self.id_to_vector(l[0], par['cue_space_size'])
+                l1 = self.id_to_vector(l, par['cue_space_size'])
                 batch[self.t[0]:self.t[1],la:lb,b] = l1
 
-
-                n1 = self.id_to_vector(n[0], par['sample_space_size'])
-                print(n1.shape)
-                print(batch[self.t[1]:self.t[2],na:nb,b].shape)
+                n1 = self.id_to_vector(n, par['sample_space_size'])
                 batch[self.t[1]:self.t[2],na:nb,b] = n1
 
-                l2 = self.id_to_vector(l[1], par['cue_space_size'])
+            for (lid, l), (nid, n) in zip(enumerate(let[1]), enumerate(num[1])):
+                la = lid     * par['cue_space_size']
+                lb = (lid+1) * par['cue_space_size']
+                na = nid     * par['sample_space_size'] + end_of_cues
+                nb = (nid+1) * par['sample_space_size'] + end_of_cues
+
+                l2 = self.id_to_vector(l, par['cue_space_size'])
                 batch[self.t[2]:self.t[3],la:lb,b] = l2
 
-                n2 = self.id_to_vector(n[1], par['sample_space_size'])
+                n2 = self.id_to_vector(n, par['sample_space_size'])
                 batch[self.t[3]:self.t[4],na:nb,b] = n2
 
             c = np.concatenate([self.id_to_vector(cues[b], par['cue_space_size'])]*par['samples_per_trial'], axis=0)
@@ -120,19 +131,23 @@ class Stimulus:
         return batch
 
 
-    def make_batch(self):
-        task_id = np.random.choice(par['n_tasks'])
+    def output_across_time(self, letters, numbers, cues, task_id):
+        batch = np.zeros(self.output_shape)
+        for b in range(par['batch_size']):
+            i = np.where(letters[:,b]==cues[b])[0][0]
+            v = self.id_to_vector(numbers[:,b][i], par['sample_space_size'])
+            batch[-par['steps_per_input']:,:,b] = v
+
+        return batch
+
+
+    def make_batch(self, task_id):
         letters, numbers, cues = self.get_input_sets()
-        print(letters[:,0])
-        print(numbers[:,0])
-        print(cues[0])
 
-        print(letters.shape, numbers.shape, cues.shape)
+        input_batch  = self.input_across_time(letters, numbers, cues, task_id)
+        output_batch = self.output_across_time(letters, numbers, cues, task_id)
 
-        batch = self.input_across_time(letters, numbers, cues, task_id)
-
-        plt.imshow(batch[:,:,0])
-        plt.show()
+        return input_batch, output_batch
 
 s = Stimulus()
-s.make_batch()
+i,o = s.make_batch(np.random.choice(par['n_tasks']))
