@@ -1,5 +1,6 @@
 import numpy as np
 import tensorflow as tf
+from itertools import product
 
 class AdamOpt:
 
@@ -57,7 +58,12 @@ class AdamOpt:
         for (grads, _), var in zip(self.gradients, self.variables):
             new_m = self.beta1*self.m[var.op.name] + (1-self.beta1)*grads
             new_v = self.beta2*self.v[var.op.name] + (1-self.beta2)*grads*grads
-            delta_grad =  - lr*gate[var.op.name]*new_m/(tf.sqrt(new_v) + self.epsilon)
+            #delta_grad =  - lr*gate[var.op.name]*new_m/(tf.sqrt(new_v) + self.epsilon)
+
+            delta_grad = - lr*new_m/(tf.sqrt(new_v) + self.epsilon)
+            delta_grad = tf.clip_by_norm(delta_grad, 1)
+
+            #delta_grad = self.dendritic_competition(delta_grad, var.op.name)
 
             self.update_var_op.append(tf.assign(self.m[var.op.name], new_m))
             self.update_var_op.append(tf.assign(self.v[var.op.name], new_v))
@@ -68,12 +74,32 @@ class AdamOpt:
 
         return tf.group(*self.update_var_op)
 
+    def dendritic_competition(self, delta_grad, var_name):
+
+        corrected_delta_grads = []
+
+        if var_name.find('W') == -1 or var_name.find('2') > 0:
+            return delta_grad
+        else:
+            print(var_name, var_name.find('2'))
+            delta_grad_branches = tf.unstack(delta_grad, axis=2)
+            corrected_delta_grads = []
+
+            # cycle through dendrites, post-synaptic neurons
+            for delta_branch in delta_grad_branches:
+                #corrected_delta_grads.append(delta_branch*tf.nn.softmax(tf.abs(3*delta_branch), dim = 0))
+                s = tf.exp(tf.abs(delta_branch))
+                corrected_delta_grads.append(delta_branch*s/(1e-6+tf.reduce_mean(s)))
+
+            corrected_delta_grads = tf.stack(corrected_delta_grads, axis = 2)
+            print(var_name, ' corrected_delta_grads', corrected_delta_grads)
+            return corrected_delta_grads
 
     def return_delta_grads(self):
         return self.delta_grads
 
     def return_means(self):
-        return self.delta_grads
+        return self.m
 
     def return_grads_and_vars(self):
         return self.gradients

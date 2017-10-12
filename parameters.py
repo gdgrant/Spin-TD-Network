@@ -20,30 +20,31 @@ par = {
     'loss_function'         : 'cross_entropy',    # cross_entropy or MSE
     'learning_rate'         : 0.001,
     'train_top_down'        : True,
-    'task'                  : 'cifar',
+    'task'                  : 'mnist',
     'save_analysis'         : True,
     'train_convolutional_layers' : False,
 
     # Task specs
-    'n_tasks'               : 10,
+    'n_tasks'               : 30,
+
 
     # Network shape
     'n_td'                  : 35,
     'n_dendrites'           : 2,
-    #'layer_dims'            : [28**2, 400, 400, 10], # mnist
-    'layer_dims'            : [4096, 1000, 1000, 100], #cifar
+    'layer_dims'            : [28**2, 2001, 2000, 10], # mnist
+    #'layer_dims'            : [4096, 1000, 1000, 100], #cifar
     'dendrites_final_layer' : False,
 
     # Dropout
     'keep_pct'              : 1.0,
 
     # Training specs
-    'batch_size'            : 1024,
+    'batch_size'            : 128,
     'n_train_batches'       : 1000,
-    'n_batches_top_down'    : 15000,
+    'n_batches_top_down'    : 8000,
 
     # Omega parameters
-    'omega_c'               : 1,
+    'omega_c'               : 0.1,
     'omega_xi'              : 0.001,
 
     # Projection of top-down activity

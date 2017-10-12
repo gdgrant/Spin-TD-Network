@@ -150,7 +150,7 @@ class Stimulus:
 
         if par['task'] == 'mnist':
             batch_data, batch_labels = self.generate_mnist_batch(task_num, test)
-            mask = 1
+            mask = np.ones((par['batch_size'], 10), dtype=np.float32)
         elif par['task'] == 'cifar':
             batch_data, batch_labels, mask = self.generate_cifar_batch(task_num, test)
         else:
