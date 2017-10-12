@@ -42,8 +42,8 @@ class Model:
         W_rnn = tf.get_variable('W_rnn', initializer=np.float32(par['W_rnn0']))
         W_out = tf.get_variable('W_out', initializer=np.float32(par['W_out0']))
 
-        b_hid = tf.get_variable('b_hid', initializer=tf.zeros([1,par['n_hidden']]))
-        b_out = tf.get_variable('b_out', initializer=tf.zeros([1,par['n_output']]))
+        b_hid = tf.get_variable('b_hid', initializer=tf.zeros([par['n_hidden'],1]))
+        b_out = tf.get_variable('b_out', initializer=tf.zeros([par['n_output'],1]))
 
         d = []  # Dendrite activity logging across time
         h = []  # Hidden layer activity logging across time
@@ -52,17 +52,17 @@ class Model:
         h_act = tf.zeros(shape=[par['n_hidden'], par['batch_size']])
         for x, td in zip(self.input_data, self.td_data):
 
-            d_in  = tf.tensordot(tf.nn.relu(W_in), x, ([2],[0]))
+            d_in  = tf.tensordot(W_in, x, ([2],[0]))
             d_td  = tf.constant(1.) # tf.tensordot(tf.nn.relu(W_td), td, ([2],[0]))
-            d_rnn = tf.tensordot(tf.nn.relu(W_rnn), h_act, ([2],[0]))
+            d_rnn = tf.tensordot(W_rnn, h_act, ([2],[0]))
 
             d_act = (d_in + d_rnn) * d_td
             d.append(d_act)
 
-            h_act = tf.reduce_sum(d_act, 1)
+            h_act = tf.nn.relu(tf.reduce_sum(d_act, 1) + b_hid)
             h.append(h_act)
 
-            y_act = tf.matmul(tf.nn.relu(W_out), h_act)
+            y_act = tf.matmul(W_out, h_act) + b_out
             y.append(y_act)
 
         print('Stimulus:     ', x.shape)
@@ -83,8 +83,9 @@ class Model:
         elif par['loss_function'] == 'cross_entropy':
             print('Cross entropy is currently broken.')
             epsilon = 1e-4
-            logistic = self.y*tf.log(self.y_hat+epsilon) + (1-self.y)*tf.log(1-self.y_hat+epsilon)
-            self.train_loss = tf.reduce_mean(self.time_mask * logistic)
+            self.y = tf.nn.softmax(self.y, dim = 1)
+            logistic = self.y_hat*tf.log(self.y+epsilon) + (1-self.y_hat)*tf.log(1-self.y+epsilon)
+            self.train_loss = tf.reduce_mean(-self.time_mask * logistic)
 
         optimizer = tf.train.AdamOptimizer(learning_rate=par['learning_rate'])
         print('\nTrainable Variables:')
@@ -320,8 +321,8 @@ def determine_accuracy(y, y_hat):
     y     = y[-par['steps_per_input']:,:,:]
     y_hat = y_hat[-par['steps_per_input']:,:,:]
 
-    y     = np.mean(np.argmax(y, 1), axis=0)
-    y_hat = np.mean(np.argmax(y_hat, 1), axis=0)
+    y     = np.argmax(y, 1)
+    y_hat = np.argmax(y_hat, 1)
 
     return np.mean(np.float32(y==y_hat))
 
