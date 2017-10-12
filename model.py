@@ -6,6 +6,7 @@ from parameters import *
 import os, time
 import pickle
 import top_down
+import matplotlib.pyplot as plt
 
 
 # Ignore startup TensorFlow warnings
@@ -20,22 +21,25 @@ class Model:
 
         # Load the input activity, the target data, and the time mask
         # for this batch of trials
-        self.input_data         = tf.unstack(input_data)
-        self.td_data            = tf.unstack(td_data)
-        self.target_data        = target_data
-        self.time_mask          = tf.constant(par['output_time_mask'])
+        self.input_data = tf.unstack(input_data)
+        self.td_data    = tf.unstack(td_data)
+        self.y_hat      = target_data
+        self.time_mask  = tf.constant(par['output_time_mask'], dtype=tf.float32)
+        self.rnn_mask   = tf.constant(par['rnn_mask'], dtype=tf.float32)
 
         # Build the TensorFlow graph
         self.run_model()
 
         # Train the model
-        #self.optimize()
+        self.optimize()
 
 
     def run_model(self):
 
+
         W_in  = tf.get_variable('W_in',  initializer=np.float32(par['W_in0']))
         W_td  = tf.get_variable('W_td',  initializer=np.float32(par['W_td0']))
+        W_rnn = tf.get_variable('W_rnn', initializer=np.float32(par['W_rnn0']))
         W_out = tf.get_variable('W_out', initializer=np.float32(par['W_out0']))
 
         b_hid = tf.get_variable('b_hid', initializer=tf.zeros([1,par['n_hidden']]))
@@ -45,18 +49,20 @@ class Model:
         h = []  # Hidden layer activity logging across time
         y = []  # Output activity logging across time
 
-        h_val = tf.constant(0.)
-        for (t, x), (_, td) in zip(enumerate(self.input_data), enumerate(self.td_data)):
+        h_act = tf.zeros(shape=[par['n_hidden'], par['batch_size']])
+        for x, td in zip(self.input_data, self.td_data):
 
-            d_in = tf.tensordot(W_in, x, ([2],[0]))
-            d_td = tf.tensordot(W_td, td, ([2],[0]))
-            d_act = d_in * d_td
+            d_in  = tf.tensordot(tf.nn.relu(W_in), x, ([2],[0]))
+            d_td  = tf.constant(1.) # tf.tensordot(tf.nn.relu(W_td), td, ([2],[0]))
+            d_rnn = tf.tensordot(tf.nn.relu(W_rnn), h_act, ([2],[0]))
+
+            d_act = (d_in + d_rnn) * d_td
             d.append(d_act)
 
             h_act = tf.reduce_sum(d_act, 1)
             h.append(h_act)
 
-            y_act = tf.matmul(W_out, h_act)
+            y_act = tf.matmul(tf.nn.relu(W_out), h_act)
             y.append(y_act)
 
         print('Stimulus:     ', x.shape)
@@ -72,17 +78,30 @@ class Model:
 
     def optimize(self):
 
-        adam_opt_method = True
+        if par['loss_function'] == 'MSE':
+            self.train_loss = tf.reduce_mean(self.time_mask*tf.square(self.y-self.y_hat))
+        elif par['loss_function'] == 'cross_entropy':
+            print('Cross entropy is currently broken.')
+            epsilon = 1e-4
+            logistic = self.y*tf.log(self.y_hat+epsilon) + (1-self.y)*tf.log(1-self.y_hat+epsilon)
+            self.train_loss = tf.reduce_mean(self.time_mask * logistic)
+
+        optimizer = tf.train.AdamOptimizer(learning_rate=par['learning_rate'])
+        print('\nTrainable Variables:')
+        [print('-->', v) for v in tf.trainable_variables()]
+
+        self.grads_and_vars = optimizer.compute_gradients(self.train_loss)
+        self.train_op       = optimizer.apply_gradients(self.grads_and_vars)
+
+
+
+
+
+        """
+        quit()
 
         epsilon = 1e-4
-        #optimizer = tf.train.AdamOptimizer(learning_rate = self.learning_rate)
-        #optimizer = tf.train.GradientDescentOptimizer(learning_rate = self.learning_rate)
 
-        # Use all trainable variables, except those in the convolutional layers
-        #variables = [var for var in tf.trainable_variables() if not var.op.name.find('conv')==0]
-        variables = [var for var in tf.trainable_variables() if not var.op.name.find('conv')==0]
-        print('Trainable Variables:')
-        [print(v) for v in variables]
 
         if adam_opt_method:
             adam_optimizer = AdamOpt.AdamOpt(variables, learning_rate = par['learning_rate'])
@@ -139,7 +158,7 @@ class Model:
         #grads_and_vars = optimizer.compute_gradients(self.task_loss, var_list = variables)
 
         """
-        Apply any applicable weights masks to the gradient and clip
+        #Apply any applicable weights masks to the gradient and clip
         """
         update_gate_ops = []
         for var in variables:
@@ -196,7 +215,7 @@ class Model:
         correct_prediction = tf.equal(tf.argmax(self.y - (1-self.mask)*9999,1), tf.argmax(self.target_data - (1-self.mask)*9999,1))
         self.accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 
-
+        """
 
 def main():
 
@@ -224,16 +243,21 @@ def main():
         #sess.run(model.reset_small_omega)
 
         print('')
+        print('Iter. |', 'Loss'.ljust(10), '|', 'Accuracy')
+        print('-'*30)
         for i in range(par['n_train_batches']):
 
             x_all, y_hat = stim.make_batch(0)
             x_st   = x_all[:,:par['n_input'],:]
             x_td   = x_all[:,par['n_input']:,:]
 
-            d, h, y_out = sess.run([model.d, model.h, model.y],
+            _, loss, d, h, y_out = sess.run([model.train_op, model.train_loss, model.d, model.h, model.y],
                          feed_dict={x:x_st, td:x_td, y: y_hat})
 
-            print(str(i).ljust(3), np.mean(d), np.mean(h), np.mean(y_out))
+            if i%50==0:
+                print(' ' + str(i).ljust(4), '|', str(loss).ljust(10), '|', str(determine_accuracy(y_out, y_hat)))
+
+
 
 
 
@@ -290,6 +314,16 @@ def determine_top_down_weights():
     # file to store/load top-down weights
     td_weight_fn = par['save_dir'] + 'top_down_weights_' + par['clamp'] + '_' + par['task'] + '_dfl_.pkl'
     top_down.TrainTopDown(td_weight_fn)
+
+
+def determine_accuracy(y, y_hat):
+    y     = y[-par['steps_per_input']:,:,:]
+    y_hat = y_hat[-par['steps_per_input']:,:,:]
+
+    y     = np.mean(np.argmax(y, 1), axis=0)
+    y_hat = np.mean(np.argmax(y_hat, 1), axis=0)
+
+    return np.mean(np.float32(y==y_hat))
 
 
 

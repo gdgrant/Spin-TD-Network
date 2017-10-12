@@ -133,10 +133,15 @@ class Stimulus:
 
     def output_across_time(self, letters, numbers, cues, task_id):
         batch = np.zeros(self.output_shape)
+
+        # Fixation
+        batch[:-par['steps_per_input']:,-1,:] = 1.
+
+        # Response
         for b in range(par['batch_size']):
             i = np.where(letters[:,b]==cues[b])[0][0]
             v = self.id_to_vector(numbers[:,b][i], par['sample_space_size'])
-            batch[-par['steps_per_input']:,:,b] = v
+            batch[-par['steps_per_input']:,:-1,b] = v
 
         return batch
 

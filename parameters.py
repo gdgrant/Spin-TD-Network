@@ -17,7 +17,7 @@ global par
 par = {
     # General parameters
     'save_dir'              : './savedir/',
-    'loss_function'         : 'cross_entropy',    # cross_entropy or MSE
+    'loss_function'         : 'MSE',    # cross_entropy or MSE
     'learning_rate'         : 0.001,
     'train_top_down'        : False,
     'task'                  : 'AR',
@@ -35,17 +35,17 @@ par = {
 
     # Network shape
     'n_td'                  : 10,
-    'n_dendrites'           : 2,
+    'n_dendrites'           : 1,
     'n_hidden'              : 50,
     'dendrites_final_layer' : False,
 
     # Training specs
-    'batch_size'            : 8,
-    'n_train_batches'       : 100,
+    'batch_size'            : 200,
+    'n_train_batches'       : 10000,
     'n_batches_top_down'    : 15000,
 
     # Omega parameters
-    'omega_c'               : 1,
+    'omega_c'               : 150,
     'omega_xi'              : 0.001,
 
     # Projection of top-down activity
@@ -124,7 +124,7 @@ def update_dependencies():
     par['n_input'] = par['samples_per_trial'] \
                       * (par['cue_space_size'] + par['sample_space_size']) \
                       + par['blank_character_size']
-    par['n_output'] = par['sample_space_size']
+    par['n_output'] = par['sample_space_size'] + 1
     par['n_steps']  = par['dead_time'] + par['steps_per_input']*par['n_input_phases']
 
     par['input_shape']  = [par['n_steps'], par['n_input']+par['n_td'], par['batch_size']]
@@ -134,6 +134,7 @@ def update_dependencies():
 
     par['input_to_hidden_dims']  = [par['n_hidden'], par['n_dendrites'], par['n_input']]
     par['td_to_hidden_dims']     = [par['n_hidden'], par['n_dendrites'], par['n_td']]
+    par['hidden_to_hidden_dims'] = [par['n_hidden'], par['n_dendrites'], par['n_hidden']]
     par['hidden_to_output_dims'] = [par['n_output'], par['n_hidden']]
 
     gen_td_cases()
@@ -145,9 +146,14 @@ def update_dependencies():
     norm1 = 1./np.sqrt(par['n_input'])
     norm2 = 1./np.sqrt(par['n_td'])
     norm3 = 1./np.sqrt(par['n_hidden'])
-    par['W_in0']  = np.random.uniform(-norm1, norm1, par['input_to_hidden_dims'])
-    par['W_td0']  = np.random.uniform(-norm2, norm2, par['td_to_hidden_dims'])
-    par['W_out0'] = np.random.uniform(-norm3, norm3, par['hidden_to_output_dims'])
+    par['W_in0']  = np.random.uniform(0., norm1, par['input_to_hidden_dims'])
+    par['W_td0']  = np.random.uniform(0., norm2, par['td_to_hidden_dims'])
+    par['W_rnn0'] = np.random.uniform(0., norm3, par['hidden_to_hidden_dims'])/100
+    par['W_out0'] = np.random.uniform(0., norm3, par['hidden_to_output_dims'])
+
+    par['rnn_mask'] = np.ones(par['hidden_to_hidden_dims'])
+    for n in range(par['n_hidden']):
+        par['rnn_mask'][n,:,n] = np.float32(0.)
 
 
 def update_parameters(updates):
