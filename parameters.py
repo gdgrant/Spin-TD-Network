@@ -19,33 +19,33 @@ par = {
     'save_dir'              : './savedir/',
     'loss_function'         : 'cross_entropy',    # cross_entropy or MSE
     'learning_rate'         : 0.001,
-    'train_top_down'        : True,
-    'task'                  : 'mnist',
+    'train_top_down'        : False,
+    'task'                  : 'cifar',
     'save_analysis'         : True,
     'train_convolutional_layers' : False,
 
     # Task specs
-    'n_tasks'               : 30,
+    'n_tasks'               : 20,
 
 
     # Network shape
-    'n_td'                  : 35,
-    'n_dendrites'           : 2,
-    'layer_dims'            : [28**2, 2001, 2000, 10], # mnist
-    #'layer_dims'            : [4096, 1000, 1000, 100], #cifar
+    'n_td'                  : 100,
+    'n_dendrites'           : 4,
+    #'layer_dims'            : [28**2, 400, 400, 10], # mnist
+    'layer_dims'            : [4096, 500, 500, 100], #cifar
     'dendrites_final_layer' : False,
 
     # Dropout
-    'keep_pct'              : 1.0,
+    'keep_pct'              : 0.5,
 
     # Training specs
-    'batch_size'            : 128,
-    'n_train_batches'       : 1000,
-    'n_batches_top_down'    : 8000,
+    'batch_size'            : 256,
+    'n_train_batches'       : 2000,
+    'n_batches_top_down'    : 15000,
 
     # Omega parameters
-    'omega_c'               : 0.1,
-    'omega_xi'              : 0.001,
+    'omega_c'               : 0.05*256,
+    'omega_xi'              : 0.1,
 
     # Projection of top-down activity
     # Only one can be True
@@ -64,11 +64,11 @@ def gen_td_cases():
 
     par['td_cases'] = np.zeros((par['n_tasks'], par['n_td']), dtype = np.float32)
 
-    if par['clamp'] == 'neurons':
-        for n in range(par['n_tasks']):
-            par['td_cases'][n, n%par['n_td']] = 1
+    #if par['clamp'] == 'neurons':
+    for n in range(par['n_tasks']):
+        par['td_cases'][n, n%par['n_td']] = 1
 
-
+    """
     elif par['clamp'] == 'dendrites':
 
         # these params below work but no real rationale why I chose them
@@ -93,12 +93,15 @@ def gen_td_cases():
                             #print(i, pair_dist, q)
                             break
                 par['td_cases'][i, :] = potential_tuning
+    """
 
 def gen_td_targets():
 
     par['td_targets'] = []
+    par['W_td0'] = []
     for n in range(par['n_layers']-1):
         td = np.zeros((par['n_tasks'],par['n_dendrites'], par['layer_dims'][n+1]), dtype = np.float32)
+        Wtd = np.zeros((par['n_td'],par['n_dendrites'], par['layer_dims'][n+1]), dtype = np.float32)
         for i in range(par['layer_dims'][n+1]):
 
             if par['clamp'] == 'dendrites':
@@ -107,13 +110,20 @@ def gen_td_targets():
                     for j, d in enumerate(q):
                         if t+j<par['n_tasks']:
                             td[t+j,d,i] = 1
+                            Wtd[t+j,d,i] = 1
 
             elif par['clamp'] == 'neurons':
                 for t in range(par['n_tasks']):
                     if t%par['n_td'] == i%par['n_td']:
                         td[t,:,i] = 1
+                        Wtd[t,:,i] = 1
+
+            elif par['clamp'] is None:
+                td[:,:,:] = 1
+                Wtd[:,:,:] = 1
 
         par['td_targets'].append(td)
+        par['W_td0'].append(Wtd)
 
 
 def update_dependencies():
@@ -133,6 +143,7 @@ def update_parameters(updates):
     """
     for (key, val) in updates.items():
         par[key] = val
+        print('Updating : ', key, ' -> ', val)
     update_dependencies()
 
 
