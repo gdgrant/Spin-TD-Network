@@ -16,7 +16,7 @@ class Stimulus:
             self.cifar10_dir = './cifar/cifar-10-python/'
             self.cifar100_dir = './cifar/cifar-100-python/'
             self.num_cifar_labels = 110
-            self.cifar_labels_per_task = 10
+            self.cifar_labels_per_task = 5
             self.generate_cifar_tuning(include_cifar10)
             self.find_cifar_indices()
 
@@ -161,6 +161,7 @@ class Stimulus:
             #task_num -= 1 # because we're not evaluating accuracy on task 0
 
         # Create top_down activity
-        top_down = np.tile(np.reshape(par['td_cases'][task_num, :],(1,-1)),(par['batch_size'],1))
+        #top_down = np.tile(np.reshape(par['td_cases'][task_num, :],(1,-1)),(par['batch_size'],1))
+        top_down = np.reshape(par['td_cases'][task_num, :],(1,-1))
 
         return batch_data, batch_labels, top_down, mask
