@@ -25,7 +25,7 @@ class Model:
         self.td_data    = tf.unstack(td_data)
         self.y_hat      = target_data
         self.time_mask  = tf.constant(par['output_time_mask'], dtype=tf.float32)
-        self.rnn_mask   = tf.constant(par['rnn_mask'], dtype=tf.float32)
+        #self.rnn_mask   = tf.constant(par['rnn_mask'], dtype=tf.float32)
 
         # Build the TensorFlow graph
         self.run_model()
@@ -36,9 +36,8 @@ class Model:
 
     def run_model(self):
 
-
         W_in  = tf.get_variable('W_in',  initializer=np.float32(par['W_in0']))
-        W_td  = tf.get_variable('W_td',  initializer=np.float32(par['W_td0']))
+        #W_td  = tf.get_variable('W_td',  initializer=np.float32(par['W_td0']))
         W_rnn = tf.get_variable('W_rnn', initializer=np.float32(par['W_rnn0']))
         W_out = tf.get_variable('W_out', initializer=np.float32(par['W_out0']))
 
@@ -81,21 +80,24 @@ class Model:
         if par['loss_function'] == 'MSE':
             self.train_loss = tf.reduce_mean(self.time_mask*tf.square(self.y-self.y_hat))
         elif par['loss_function'] == 'cross_entropy':
-            print('Cross entropy is currently broken.')
             epsilon = 1e-4
             self.y = tf.nn.softmax(self.y, dim = 1)
             logistic = self.y_hat*tf.log(self.y+epsilon) + (1-self.y_hat)*tf.log(1-self.y+epsilon)
-            self.train_loss = tf.reduce_mean(-self.time_mask * logistic)
+            self.train_loss = -tf.reduce_mean(self.time_mask * logistic)
 
         optimizer = tf.train.AdamOptimizer(learning_rate=par['learning_rate'])
         print('\nTrainable Variables:')
         [print('-->', v) for v in tf.trainable_variables()]
 
-        self.grads_and_vars = optimizer.compute_gradients(self.train_loss)
-        self.train_op       = optimizer.apply_gradients(self.grads_and_vars)
+        self.spike_loss = 0.00000001*tf.reduce_mean(self.h)
 
-
-
+        self.grads_and_vars = optimizer.compute_gradients(self.train_loss + self.spike_loss)
+        capped_gvs = []
+        print('GRADS AND VARS')
+        for grad, var in self.grads_and_vars:
+            print(var, grad)
+            capped_gvs.append((tf.clip_by_norm(grad, 1), var))
+        self.train_op       = optimizer.apply_gradients(capped_gvs)
 
 
         """
@@ -255,8 +257,8 @@ def main():
             _, loss, d, h, y_out = sess.run([model.train_op, model.train_loss, model.d, model.h, model.y],
                          feed_dict={x:x_st, td:x_td, y: y_hat})
 
-            if i%50==0:
-                print(' ' + str(i).ljust(4), '|', str(loss).ljust(10), '|', str(determine_accuracy(y_out, y_hat)))
+            if (i+1)%50==0:
+                print(' ' + str(i).ljust(4), '|', str(loss).ljust(10), '|', str(determine_accuracy(y_out, y_hat)).ljust(14), '|', np.mean(h))
 
 
 
@@ -318,6 +320,7 @@ def determine_top_down_weights():
 
 
 def determine_accuracy(y, y_hat):
+    
     y     = y[-par['steps_per_input']:,:,:]
     y_hat = y_hat[-par['steps_per_input']:,:,:]
 
