@@ -6,6 +6,7 @@ from parameters import *
 import os, time
 import pickle
 import top_down
+import matplotlib.pyplot as plt
 
 
 # Ignore startup TensorFlow warnings
@@ -72,10 +73,11 @@ class Model:
                 else:
                     if par['dendrites_final_layer']:
                         dend_activity = tf.tensordot(self.x, W_effective, ([1],[0])) + b_effective
-                        self.y = tf.nn.softmax(tf.reduce_sum(dend_activity, axis=1), dim = 1)
+                        # Want to ensure that masked out values don't contribute to softmax
+                        self.y = self.mask*tf.nn.softmax(tf.reduce_sum(dend_activity, axis=1) - (1-self.mask)*1e32, dim = 1)
 
                     else:
-                        self.y = tf.nn.softmax(tf.matmul(self.x,W) + b, dim = 1)
+                        self.y = tf.nn.softmax(tf.matmul(self.x,W) + b  - (1-self.mask)*1e32 , dim = 1)
 
     def apply_convulational_layers(self):
 
@@ -158,7 +160,7 @@ class Model:
 
         #self.task_loss = -tf.reduce_sum(self.target_data*tf.log(self.y+epsilon) + (1.-self.target_data)*tf.log(1.-self.y+epsilon) )
 
-        self.total_loss = self.task_loss + 0.0000001*self.spike_loss
+        self.total_loss = self.task_loss #+ 0.0000001*self.spike_loss
 
         # Gradient of the loss+aux function, in order to both perform training and to compute delta_weights
         self.train_op = adam_optimizer.compute_gradients(self.total_loss + self.aux_loss)
@@ -224,17 +226,35 @@ def main(save_fn):
 
                 stim_in, y_hat, td_in, mk = stim.make_batch(task, test = False)
 
-                _,loss,spike_loss,_,AL = sess.run([model.train_op, model.task_loss,model.spike_loss, model.update_small_omega, \
-                    model.aux_loss], feed_dict={x:stim_in, td:td_in, y:y_hat, mask:mk, droput_keep_pct:par['keep_pct']})
+                _,loss,spike_loss,_,AL, dg = sess.run([model.train_op, model.task_loss,model.spike_loss, model.update_small_omega, \
+                    model.aux_loss, model.delta_grads], feed_dict={x:stim_in, td:td_in, y:y_hat, mask:mk, droput_keep_pct:par['keep_pct']})
 
                 if (i+1)//400 == (i+1)/400:
                     print('Iter: ', i, 'Loss: ', loss, 'Aux Loss: ',  AL)
+
+                if task == 999 and i==10:
+                    for v,g in dg.items():
+                        print(v, g.shape)
+                        if g.shape[1] == 4:
+                            plt.imshow(g[:,:,0], aspect='auto', interpolation='none')
+                            plt.colorbar()
+                            plt.show()
+                    quit()
 
             # Update big omegaes, and reset other values before starting new task
             sess.run(model.update_big_omega,feed_dict={td:td_in})
             big_omegas = sess.run(model.big_omega_var)
             sess.run(model.reset_adam_op)
             sess.run(model.reset_small_omega)
+
+            if task == 999:
+                for v,g in big_omegas.items():
+                    print(v, g.shape)
+                    if g.shape[1] == 4:
+                        plt.imshow(g[:,:,0], aspect='auto', interpolation='none')
+                        plt.colorbar()
+                        plt.show()
+                quit()
 
             accuracy = np.zeros((task+1))
             for test_task in range(task+1):
