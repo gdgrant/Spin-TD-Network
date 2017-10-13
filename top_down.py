@@ -5,6 +5,8 @@ import time
 import stimulus
 from parameters import *
 
+
+
 class TrainTopDown:
 
     def __init__(self, save_fn):
