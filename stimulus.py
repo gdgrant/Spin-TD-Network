@@ -148,11 +148,10 @@ class Stimulus:
 
     def make_batch(self, task_id):
         letters, numbers, cues = self.get_input_sets()
-
         input_batch  = self.input_across_time(letters, numbers, cues, task_id)
         output_batch = self.output_across_time(letters, numbers, cues, task_id)
 
         return input_batch, output_batch
 
-s = Stimulus()
-i,o = s.make_batch(np.random.choice(par['n_tasks']))
+#s = Stimulus()
+#i,o = s.make_batch(np.random.choice(par['n_tasks']))
