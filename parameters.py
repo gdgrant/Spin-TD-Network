@@ -17,30 +17,30 @@ global par
 par = {
     # General parameters
     'save_dir'              : './savedir/',
-    'loss_function'         : 'MSE',    # cross_entropy or MSE
-    'learning_rate'         : 0.001,
+    'loss_function'         : 'cross_entropy',    # cross_entropy or MSE
+    'learning_rate'         : 0.01,
     'train_top_down'        : False,
     'task'                  : 'AR',
     'save_analysis'         : True,
 
     # Task specs
     'n_tasks'               : 10,   # Number of pairwise variations
-    'samples_per_trial'     : 10,   # Half the total number of presented pairs
-    'cue_space_size'        : 26,   # Number of letters
+    'samples_per_trial'     : 5,   # Half the total number of presented pairs
+    'cue_space_size'        : 10,   # Number of letters
     'sample_space_size'     : 10,   # Number of numbers
     'blank_character_size'  : 10,   # Number of inputs assigned to the blank character
-    'dead_time'             : 10,   # Inactive time steps before any stimulus
-    'steps_per_input'       : 20,   # Number of time steps for each input phase
-    'n_input_phases'        : 7,    # Precisely what it says -- this is fixed
+    'dead_time'             : 5,   # Inactive time steps before any stimulus
+    'steps_per_input'       : 5,   # Number of time steps for each input phase
+    'n_input_phases'        : 6,    # Precisely what it says -- this is fixed
 
     # Network shape
     'n_td'                  : 10,
     'n_dendrites'           : 1,
-    'n_hidden'              : 50,
+    'n_hidden'              : 250,
     'dendrites_final_layer' : False,
 
     # Training specs
-    'batch_size'            : 200,
+    'batch_size'            : 256,
     'n_train_batches'       : 10000,
     'n_batches_top_down'    : 15000,
 
@@ -146,14 +146,19 @@ def update_dependencies():
     norm1 = 1./np.sqrt(par['n_input'])
     norm2 = 1./np.sqrt(par['n_td'])
     norm3 = 1./np.sqrt(par['n_hidden'])
-    par['W_in0']  = np.random.uniform(0., norm1, par['input_to_hidden_dims'])
-    par['W_td0']  = np.random.uniform(0., norm2, par['td_to_hidden_dims'])
-    par['W_rnn0'] = np.random.uniform(0., norm3, par['hidden_to_hidden_dims'])/100
-    par['W_out0'] = np.random.uniform(0., norm3, par['hidden_to_output_dims'])
+    par['W_in0']  = np.random.uniform(-norm1, norm1, par['input_to_hidden_dims'])
+    par['W_td0']  = np.random.uniform(-norm2, norm2, par['td_to_hidden_dims'])
+    #par['W_rnn0'] = np.random.uniform(-norm3, norm3, par['hidden_to_hidden_dims'])
 
-    par['rnn_mask'] = np.ones(par['hidden_to_hidden_dims'])
-    for n in range(par['n_hidden']):
-        par['rnn_mask'][n,:,n] = np.float32(0.)
+    par['W_rnn0'] = np.zeros(par['hidden_to_hidden_dims'])
+    for d in range(par['n_dendrites']):
+        par['W_rnn0'][:,d,:] = 0.95*np.eye(par['n_hidden'])
+    
+    par['W_out0'] = np.random.uniform(-norm3, norm3, par['hidden_to_output_dims'])
+
+    #par['rnn_mask'] = np.ones(par['hidden_to_hidden_dims'])
+    #for n in range(par['n_hidden']):
+        #par['rnn_mask'][n,:,n] = np.float32(0.)
 
 
 def update_parameters(updates):
