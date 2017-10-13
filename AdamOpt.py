@@ -46,24 +46,20 @@ class AdamOpt:
         return tf.group(*reset_op)
 
 
-    def compute_gradients(self, loss, gate, apply = True):
+    def compute_gradients(self, loss, apply = True):
 
         self.gradients = self.grad_descent.compute_gradients(loss, var_list = self.variables)
 
         self.t += 1
         lr = self.learning_rate*np.sqrt(1-self.beta2**self.t)/(1-self.beta1**self.t)
-        #lr = self.learning_rate
         self.update_var_op = []
 
         for (grads, _), var in zip(self.gradients, self.variables):
             new_m = self.beta1*self.m[var.op.name] + (1-self.beta1)*grads
             new_v = self.beta2*self.v[var.op.name] + (1-self.beta2)*grads*grads
-            #delta_grad =  - lr*gate[var.op.name]*new_m/(tf.sqrt(new_v) + self.epsilon)
 
             delta_grad = - lr*new_m/(tf.sqrt(new_v) + self.epsilon)
             delta_grad = tf.clip_by_norm(delta_grad, 1)
-
-            #delta_grad = self.dendritic_competition(delta_grad, var.op.name)
 
             self.update_var_op.append(tf.assign(self.m[var.op.name], new_m))
             self.update_var_op.append(tf.assign(self.v[var.op.name], new_v))
@@ -75,7 +71,8 @@ class AdamOpt:
         return tf.group(*self.update_var_op)
 
     def dendritic_competition(self, delta_grad, var_name):
-
+        # Currently unused, might delete in future
+        
         corrected_delta_grads = []
 
         if var_name.find('W') == -1 or var_name.find('2') > 0:
