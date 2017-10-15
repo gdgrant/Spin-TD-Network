@@ -18,14 +18,15 @@ par = {
     # General parameters
     'save_dir'              : './savedir/',
     'loss_function'         : 'cross_entropy',    # cross_entropy or MSE
+    'stabilization'         : 'EWC', # 'EWC' (Kirkpatrick method) or 'pathint' (Zenke method)
     'learning_rate'         : 0.001,
     'train_top_down'        : False,
-    'task'                  : 'cifar',
+    'task'                  : 'mnist',
     'save_analysis'         : True,
     'train_convolutional_layers' : False,
 
     # Task specs
-    'n_tasks'               : 20,
+    'n_tasks'               : 100,
 
 
     # Network shape
