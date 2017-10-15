@@ -105,48 +105,81 @@ class Model:
 
         return tf.reshape(conv4,[par['batch_size'], -1])
 
+
     def optimize(self):
 
         epsilon = 1e-4
 
         # Use all trainable variables, except those in the convolutional layers
         #variables = [var for var in tf.trainable_variables() if not var.op.name.find('conv')==0]
-        variables = [var for var in tf.trainable_variables() if not var.op.name.find('conv')==0]
-
-        adam_optimizer = AdamOpt.AdamOpt(variables, learning_rate = par['learning_rate'])
-        optimizer_task = tf.train.GradientDescentOptimizer(learning_rate =  par['learning_rate'])
-        #adam_optimizer_task = AdamOpt.AdamOpt(variables, learning_rate = par['learning_rate'])
-
-
-        small_omega_var = {}
+        self.variables = [var for var in tf.trainable_variables() if not var.op.name.find('conv')==0]
+        adam_optimizer = AdamOpt.AdamOpt(self.variables, learning_rate = par['learning_rate'])
 
         previous_weights_mu_minus_1 = {}
+        reset_prev_vars_ops = []
         self.big_omega_var = {}
-
         self.aux_loss = 0.0
+
+        for var in self.variables:
+            previous_weights_mu_minus_1[var.op.name] = tf.Variable(tf.zeros(var.get_shape()), trainable=False)
+            self.big_omega_var[var.op.name] = tf.Variable(tf.zeros(var.get_shape()), trainable=False)
+            self.aux_loss += par['omega_c']*tf.reduce_sum(tf.multiply(self.big_omega_var[var.op.name], tf.square(previous_weights_mu_minus_1[var.op.name] - var) ))
+            reset_prev_vars_ops.append( tf.assign( previous_weights_mu_minus_1[var.op.name], var ) )
+
+        if par['stabilization'] == 'pathint':
+            # Zenke method
+            self.pathint_stabilization()
+        elif par['stabilization'] == 'EWC':
+            # Kirkpatrick method
+            self.EWC()
+
+        self.task_loss = -tf.reduce_sum(self.mask*self.target_data*tf.log(self.y+epsilon) + \
+            self.mask*(1.-self.target_data)*tf.log(1.-self.y+epsilon) )
+
+        # Gradient of the loss+aux function, in order to both perform training and to compute delta_weights
+        self.train_op = adam_optimizer.compute_gradients(self.task_loss + self.aux_loss)
+
+        self.reset_prev_vars = tf.group(*reset_prev_vars_ops)
+        self.reset_adam_op = adam_optimizer.reset_params()
+
+        correct_prediction = tf.equal(tf.argmax(self.y - (1-self.mask)*9999,1), tf.argmax(self.target_data - (1-self.mask)*9999,1))
+        self.accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+
+    def EWC(self):
+        # Kirkpatrick method
+
+        #for var in self.variables:
+            #self.fisher_mat[var.op.name] = tf.Variable(tf.zeros(var.get_shape()), trainable=False)
+        fisher_ops = []
+        opt = tf.train.GradientDescentOptimizer(1)
+        y_unstacked = tf.unstack(self.y, axis = 0)
+        #for y in y_unstacked:
+        for y1 in tf.unstack(y_unstacked[0]):
+            grads_and_vars = opt.compute_gradients(tf.log(y1))
+            for grad, var in grads_and_vars:
+                print(var.op.name, grad)
+                fisher_ops.append(tf.assign_add(self.big_omega_var[var.op.name], \
+                    grad*grad/par['batch_size']/par['layer_dims'][-1]))
+
+        self.update_big_omega = tf.group(*fisher_ops)
+
+    def pathint_stabilization(self):
+        # Zenke method
+
+        optimizer_task = tf.train.GradientDescentOptimizer(learning_rate =  par['learning_rate'])
+        small_omega_var = {}
 
         reset_small_omega_ops = []
         update_small_omega_ops = []
         update_big_omega_ops = []
         initialize_prev_weights_ops = []
 
-        for var in variables:
+        for var in self.variables:
 
-            # Create variables
-            #gates[var.op.name] = tf.Variable(tf.ones(var.get_shape()), trainable=False)
             small_omega_var[var.op.name] = tf.Variable(tf.zeros(var.get_shape()), trainable=False)
-            previous_weights_mu_minus_1[var.op.name] = tf.Variable(tf.zeros(var.get_shape()), trainable=False)
-            self.big_omega_var[var.op.name] = tf.Variable(tf.zeros(var.get_shape()), trainable=False)
-
-            # Create assing operations
             reset_small_omega_ops.append( tf.assign( small_omega_var[var.op.name], small_omega_var[var.op.name]*0.0 ) )
-            reset_small_omega_ops.append( tf.assign( previous_weights_mu_minus_1[var.op.name], var ) )
-
-
             update_big_omega_ops.append( tf.assign_add( self.big_omega_var[var.op.name], tf.div(tf.nn.relu(small_omega_var[var.op.name]), \
             	(par['omega_xi'] + tf.square(var-previous_weights_mu_minus_1[var.op.name])))))
-
-            self.aux_loss += par['omega_c']*tf.reduce_sum(tf.multiply(self.big_omega_var[var.op.name], tf.square(previous_weights_mu_minus_1[var.op.name] - var) ))
 
         # After each task is complete, call update_big_omega and reset_small_omega
         self.update_big_omega = tf.group(*update_big_omega_ops)
@@ -155,35 +188,15 @@ class Model:
         # Reset_small_omega also makes a backup of the final weights, used as hook in the auxiliary loss
         self.reset_small_omega = tf.group(*reset_small_omega_ops)
 
-        self.task_loss = -tf.reduce_sum(self.mask*self.target_data*tf.log(self.y+epsilon) + \
-            self.mask*(1.-self.target_data)*tf.log(1.-self.y+epsilon) )
-
-        #self.task_loss = -tf.reduce_sum(self.target_data*tf.log(self.y+epsilon) + (1.-self.target_data)*tf.log(1.-self.y+epsilon) )
-
-        self.total_loss = self.task_loss #+ 0.0000001*self.spike_loss
-
-        # Gradient of the loss+aux function, in order to both perform training and to compute delta_weights
-        self.train_op = adam_optimizer.compute_gradients(self.total_loss + self.aux_loss)
         #self.task_op = adam_optimizer_task.compute_gradients(self.task_loss, gates)
         self.delta_grads = adam_optimizer.return_delta_grads()
         self.gradients = optimizer_task.compute_gradients(self.task_loss)
-
-
-        #self.gradients = adam_optimizer.return_grads_and_vars()
-        reset_op = []
-        reset_op.append(adam_optimizer.reset_params())
-        self.reset_adam_op = adam_optimizer.reset_params()
 
         # This is called every batch
         for grad,var in self.gradients:
             update_small_omega_ops.append( tf.assign_add( small_omega_var[var.op.name], -self.delta_grads[var.op.name]*grad ) )
 
         self.update_small_omega = tf.group(*update_small_omega_ops) # 1) update small_omega after each train!
-
-        correct_prediction = tf.equal(tf.argmax(self.y - (1-self.mask)*9999,1), tf.argmax(self.target_data - (1-self.mask)*9999,1))
-        self.accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-
-
 
 def main(save_fn):
 
@@ -218,43 +231,37 @@ def main(save_fn):
         model = Model(x, td, y, mask, droput_keep_pct)
         sess.run(tf.global_variables_initializer())
         t_start = time.time()
-        sess.run(model.reset_small_omega)
+        sess.run(model.reset_prev_vars)
 
         for task in range(0,par['n_tasks']):
 
             for i in range(par['n_train_batches']):
 
                 stim_in, y_hat, td_in, mk = stim.make_batch(task, test = False)
-
-                _,loss,spike_loss,_,AL, dg = sess.run([model.train_op, model.task_loss,model.spike_loss, model.update_small_omega, \
-                    model.aux_loss, model.delta_grads], feed_dict={x:stim_in, td:td_in, y:y_hat, mask:mk, droput_keep_pct:par['keep_pct']})
+                if par['stabilization'] == 'pathint':
+                    _,loss,spike_loss,_,AL = sess.run([model.train_op, model.task_loss,model.spike_loss, model.update_small_omega, \
+                        model.aux_loss], feed_dict={x:stim_in, td:td_in, y:y_hat, mask:mk, droput_keep_pct:par['keep_pct']})
+                elif par['stabilization'] == 'EWC':
+                    _,loss,spike_loss,AL = sess.run([model.train_op, model.task_loss,model.spike_loss, \
+                        model.aux_loss], feed_dict={x:stim_in, td:td_in, y:y_hat, mask:mk, droput_keep_pct:par['keep_pct']})
 
                 if (i+1)//400 == (i+1)/400:
                     print('Iter: ', i, 'Loss: ', loss, 'Aux Loss: ',  AL)
 
-                if task == 999 and i==10:
-                    for v,g in dg.items():
-                        print(v, g.shape)
-                        if g.shape[1] == 4:
-                            plt.imshow(g[:,:,0], aspect='auto', interpolation='none')
-                            plt.colorbar()
-                            plt.show()
-                    quit()
 
             # Update big omegaes, and reset other values before starting new task
-            sess.run(model.update_big_omega,feed_dict={td:td_in})
+            if par['stabilization'] == 'pathint':
+                sess.run(model.update_big_omega,feed_dict={x:stim_in, td:td_in, mask:mk, droput_keep_pct:1.0})
+            elif par['stabilization'] == 'EWC':
+                for n in range(par['batch_size']):
+                    stim_in, y_hat, td_in, mk = stim.make_batch(task, test = False)
+                    sess.run(model.update_big_omega,feed_dict={x:stim_in, td:td_in, mask:mk, droput_keep_pct:1.0})
+
             big_omegas = sess.run(model.big_omega_var)
             sess.run(model.reset_adam_op)
-            sess.run(model.reset_small_omega)
-
-            if task == 999:
-                for v,g in big_omegas.items():
-                    print(v, g.shape)
-                    if g.shape[1] == 4:
-                        plt.imshow(g[:,:,0], aspect='auto', interpolation='none')
-                        plt.colorbar()
-                        plt.show()
-                quit()
+            sess.run(model.reset_prev_vars)
+            if par['stabilization'] == 'pathint':
+                sess.run(model.reset_small_omega)
 
             accuracy = np.zeros((task+1))
             for test_task in range(task+1):
