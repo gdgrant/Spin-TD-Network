@@ -18,7 +18,7 @@ par = {
     # General parameters
     'save_dir'              : './savedir/',
     'loss_function'         : 'cross_entropy',    # cross_entropy or MSE
-    'stabilization'         : 'EWC', # 'EWC' (Kirkpatrick method) or 'pathint' (Zenke method)
+    'stabilization'         : 'pathinit', # 'EWC' (Kirkpatrick method) or 'pathint' (Zenke method)
     'learning_rate'         : 0.001,
     'train_top_down'        : False,
     'task'                  : 'mnist',
@@ -31,10 +31,11 @@ par = {
 
     # Network shape
     'n_td'                  : 100,
-    'n_dendrites'           : 4,
-    #'layer_dims'            : [28**2, 400, 400, 10], # mnist
-    'layer_dims'            : [4096, 500, 500, 100], #cifar
+    'n_dendrites'           : 1,
+    'layer_dims'            : [28**2, 400, 400, 10], # mnist
+    #'layer_dims'            : [4096, 500, 500, 100], #cifar
     'dendrites_final_layer' : False,
+    'pct_active_neurons'    : 0.25,
 
     # Dropout
     'keep_pct'              : 0.5,
@@ -69,34 +70,10 @@ def gen_td_cases():
     for n in range(par['n_tasks']):
         par['td_cases'][n, n%par['n_td']] = 1
 
-    """
-    elif par['clamp'] == 'dendrites':
-
-        # these params below work but no real rationale why I chose them
-        n = 3
-        min_dist = 4
-
-        for i in range(par['n_tasks']):
-            q = np.random.permutation(par['n_td'])[:n]
-            if i == 0:
-                par['td_cases'][i, q] = 1
-            else:
-                found_tuning = False
-                while not found_tuning:
-                    potential_tuning = np.zeros((par['n_td']))
-                    potential_tuning[q] = 1
-                    found_tuning = True
-                    for j in range(i-1):
-                        pair_dist = np.sum(np.abs(potential_tuning - par['td_cases'][j,:]))
-                        if pair_dist < min_dist:
-                            found_tuning = False
-                            q = np.random.permutation(par['n_td'])[:n]
-                            #print(i, pair_dist, q)
-                            break
-                par['td_cases'][i, :] = potential_tuning
-    """
 
 def gen_td_targets():
+
+    m = int(1/par['pct_active_neurons'])
 
     par['td_targets'] = []
     par['W_td0'] = []
@@ -114,10 +91,21 @@ def gen_td_targets():
                             Wtd[t+j,d,i] = 1
 
             elif par['clamp'] == 'neurons':
-                for t in range(par['n_tasks']):
+                for t in range(0, par['n_tasks'], m):
+                    q = np.random.permutation(m)[0]
+                    if t+q<par['n_tasks']:
+                        td[t+q,:,i] = 1
+                        Wtd[t+q,:,i] = 1
+                    """
+                    for j, d in enumerate(q):
+                        if t+j<par['n_tasks']:
+                            td[t+j,:,i] = 1
+                            Wtd[t+j,:,i] = 1
+
                     if t%par['n_td'] == i%par['n_td']:
                         td[t,:,i] = 1
                         Wtd[t,:,i] = 1
+                    """
 
             elif par['clamp'] is None:
                 td[:,:,:] = 1
