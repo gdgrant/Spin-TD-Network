@@ -152,8 +152,8 @@ def update_dependencies():
 
     par['W_rnn0'] = np.zeros(par['hidden_to_hidden_dims'])
     for d in range(par['n_dendrites']):
-        par['W_rnn0'][:,d,:] = 0.95*np.eye(par['n_hidden'])
-    
+        par['W_rnn0'][:,d,:] = 0.85*np.eye(par['n_hidden'])
+
     par['W_out0'] = np.random.uniform(-norm3, norm3, par['hidden_to_output_dims'])
 
     #par['rnn_mask'] = np.ones(par['hidden_to_hidden_dims'])

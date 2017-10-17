@@ -48,7 +48,7 @@ class Model:
         h = []  # Hidden layer activity logging across time
         y = []  # Output activity logging across time
 
-        h_act = tf.zeros(shape=[par['n_hidden'], par['batch_size']])
+        h_act = tf.zeros(shape=[par['n_hidden'], par['batch_size']]) + 0.01
         for x, td in zip(self.input_data, self.td_data):
 
             d_in  = tf.tensordot(W_in, x, ([2],[0]))
@@ -89,13 +89,13 @@ class Model:
         print('\nTrainable Variables:')
         [print('-->', v) for v in tf.trainable_variables()]
 
-        self.spike_loss = 0.00000001*tf.reduce_mean(self.h)
+        self.spike_loss = 0.000001*tf.reduce_mean(self.h)
 
         self.grads_and_vars = optimizer.compute_gradients(self.train_loss + self.spike_loss)
         capped_gvs = []
         print('GRADS AND VARS')
         for grad, var in self.grads_and_vars:
-            print(var, grad)
+            print(grad.name, grad.shape)
             capped_gvs.append((tf.clip_by_norm(grad, 1), var))
         self.train_op       = optimizer.apply_gradients(capped_gvs)
 
@@ -246,8 +246,8 @@ def main():
         #sess.run(model.reset_small_omega)
 
         print('')
-        print('Iter. |', 'Loss'.ljust(10), '|', 'Accuracy')
-        print('-'*30)
+        print('Iter. |', 'Loss'.ljust(10), '|', 'Accuracy       |', 'Hidden Activity')
+        print('-'*60)
         for i in range(par['n_train_batches']):
 
             x_all, y_hat = stim.make_batch(0)
@@ -320,7 +320,7 @@ def determine_top_down_weights():
 
 
 def determine_accuracy(y, y_hat):
-    
+
     y     = y[-par['steps_per_input']:,:,:]
     y_hat = y_hat[-par['steps_per_input']:,:,:]
 
