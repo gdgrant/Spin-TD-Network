@@ -35,23 +35,25 @@ par = {
     'layer_dims'            : [28**2, 400, 400, 10], # mnist
     #'layer_dims'            : [4096, 500, 500, 100], #cifar
     'dendrites_final_layer' : False,
-    'pct_active_neurons'    : 0.25,
+    'pct_active_neurons'    : 1.0,
 
     # Dropout
     'keep_pct'              : 0.5,
 
     # Training specs
-    'batch_size'            : 256,
+    'batch_size'            : 128,
     'n_train_batches'       : 2000,
     'n_batches_top_down'    : 15000,
 
     # Omega parameters
     'omega_c'               : 0.05*256,
     'omega_xi'              : 0.1,
+    'last_layer_mult'       : 2,
+    'scale_factor'          : 1,
 
     # Projection of top-down activity
     # Only one can be True
-    'clamp'                 : 'dendrites', # can be either 'dendrites' or 'neurons' or None
+    'clamp'                 : None, # can be either 'dendrites' or 'neurons' or None
 
 }
 
@@ -73,7 +75,8 @@ def gen_td_cases():
 
 def gen_td_targets():
 
-    m = int(1/par['pct_active_neurons'])
+    m = round(1/par['pct_active_neurons'])
+    print('Clamping: selecting every ', m, ' neuron')
 
     par['td_targets'] = []
     par['W_td0'] = []
@@ -89,6 +92,12 @@ def gen_td_targets():
                         if t+j<par['n_tasks']:
                             td[t+j,d,i] = 1
                             Wtd[t+j,d,i] = 1
+                """
+                for t in range(0, par['n_tasks']):
+                    td[t,t%par['n_dendrites'],i] = 1
+                    Wtd[t,t%par['n_dendrites'],i] = 1
+                """
+
 
             elif par['clamp'] == 'neurons':
                 for t in range(0, par['n_tasks'], m):
@@ -136,5 +145,5 @@ def update_parameters(updates):
     update_dependencies()
 
 
-update_dependencies()
+#update_dependencies()
 print("--> Parameters successfully loaded.\n")
