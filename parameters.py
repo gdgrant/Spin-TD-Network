@@ -16,7 +16,7 @@ global par
 
 par = {
     # General parameters
-    'save_dir'              : './savedir/',
+    'save_dir'              : './savedir/perm_mnist_no_topdown/',
     'loss_function'         : 'cross_entropy',    # cross_entropy or MSE
     'stabilization'         : 'pathinit', # 'EWC' (Kirkpatrick method) or 'pathint' (Zenke method)
     'learning_rate'         : 0.001,
@@ -32,17 +32,18 @@ par = {
     # Network shape
     'n_td'                  : 100,
     'n_dendrites'           : 1,
-    'layer_dims'            : [28**2, 400, 400, 10], # mnist
+    'layer_dims'            : [28**2, 100, 100, 10], # mnist
     #'layer_dims'            : [4096, 500, 500, 100], #cifar
     'dendrites_final_layer' : False,
     'pct_active_neurons'    : 1.0,
 
     # Dropout
-    'keep_pct'              : 0.5,
+    'drop_keep_pct'         : 0.5,
+    'input_drop_keep_pct'   : 0.8,
 
     # Training specs
-    'batch_size'            : 128,
-    'n_train_batches'       : 2000,
+    'batch_size'            : 256,
+    'n_train_batches'       : 3906, # 3906*256 = 20 epochs * 50000
     'n_batches_top_down'    : 15000,
 
     # Omega parameters
@@ -53,7 +54,7 @@ par = {
 
     # Projection of top-down activity
     # Only one can be True
-    'clamp'                 : None, # can be either 'dendrites' or 'neurons' or None
+    'clamp'                 : 'dendrites', # can be either 'dendrites', 'neurons', 'bias' or None
 
 }
 
@@ -92,12 +93,6 @@ def gen_td_targets():
                         if t+j<par['n_tasks']:
                             td[t+j,d,i] = 1
                             Wtd[t+j,d,i] = 1
-                """
-                for t in range(0, par['n_tasks']):
-                    td[t,t%par['n_dendrites'],i] = 1
-                    Wtd[t,t%par['n_dendrites'],i] = 1
-                """
-
 
             elif par['clamp'] == 'neurons':
                 for t in range(0, par['n_tasks'], m):
@@ -105,16 +100,25 @@ def gen_td_targets():
                     if t+q<par['n_tasks']:
                         td[t+q,:,i] = 1
                         Wtd[t+q,:,i] = 1
-                    """
-                    for j, d in enumerate(q):
-                        if t+j<par['n_tasks']:
-                            td[t+j,:,i] = 1
-                            Wtd[t+j,:,i] = 1
 
-                    if t%par['n_td'] == i%par['n_td']:
+            elif par['clamp'] == 'split':
+                for t in range(0, par['n_tasks']):
+                    if t%m == i%m:
+                        if np.random.rand(1) < 0.5:
+                            td[t,:,i] = 0.5
+                            Wtd[t,:,i] = 0.5
+                        else:
+                            td[t,:,i] = 1
+                            Wtd[t,:,i] = 1
+
+            elif par['clamp'] == 'bias':
+                for t in range(0, par['n_tasks']):
+                    if np.random.rand(1) < 0.5:
+                        td[t,:,i] = 0.5
+                        Wtd[t,:,i] = 0.5
+                    else:
                         td[t,:,i] = 1
                         Wtd[t,:,i] = 1
-                    """
 
             elif par['clamp'] is None:
                 td[:,:,:] = 1

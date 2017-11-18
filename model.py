@@ -17,7 +17,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL']='2'
 ###################
 class Model:
 
-    def __init__(self, input_data, td_data, target_data, mask, droput_keep_pct):
+    def __init__(self, input_data, td_data, target_data, mask, droput_keep_pct, input_droput_keep_pct):
 
         # Load the input activity, the target data, and the training mask
         # for this batch of trials
@@ -25,6 +25,7 @@ class Model:
         self.td_data            = td_data
         self.target_data        = target_data
         self.droput_keep_pct    = droput_keep_pct
+        self.input_droput_keep_pct  = input_droput_keep_pct
         self.mask               = mask
 
         # Build the TensorFlow graph
@@ -40,8 +41,8 @@ class Model:
             self.x = self.apply_convulational_layers()
 
         elif par['task'] == 'mnist':
-            self.x = tf.nn.dropout(self.input_data, 0.5 + self.droput_keep_pct/2)
-            #self.x = tf.nn.dropout(self.input_data, 0.8)
+            self.x = tf.nn.dropout(self.input_data, self.input_droput_keep_pct)
+            #self.x = tf.nn.dropout(self.input_data, 1.0)
 
         self.apply_dense_layers()
 
@@ -55,22 +56,29 @@ class Model:
         for n, scope_name in enumerate(['layer'+str(n) for n in range(par['n_layers']-1)]):
             with tf.variable_scope(scope_name):
                 if n < par['n_layers']-2 or par['dendrites_final_layer']:
-                    W = tf.get_variable('W', initializer = tf.random_uniform([par['layer_dims'][n],par['n_dendrites'],par['layer_dims'][n+1]], -1.0/np.sqrt(par['layer_dims'][n]), 1.0/np.sqrt(par['layer_dims'][n])), trainable = True)
+                    W = tf.get_variable('W', initializer = tf.random_uniform([par['layer_dims'][n],par['n_dendrites'],par['layer_dims'][n+1]], \
+                        -1.0/np.sqrt(par['layer_dims'][n]), 1.0/np.sqrt(par['layer_dims'][n])), trainable = True)
                     b = tf.get_variable('b', initializer = tf.zeros([1,par['n_dendrites'],par['layer_dims'][n+1]]), trainable = True)
                     W_td = tf.get_variable('W_td', initializer = par['W_td0'][n], trainable = False)
 
                     proj_W_td = tf.tensordot(self.td_data, W_td, ([1],[0]))
-                    W_effective = W*tf.tile(proj_W_td,[par['layer_dims'][n],1,1])
-                    b_effective = b*proj_W_td
+                    proj_W_td = tf.tile(proj_W_td,[par['batch_size'], 1, 1])
+                    #W_effective = W*tf.tile(proj_W_td,[par['layer_dims'][n],1,1])
+                    #b_effective = b*proj_W_td
 
                 else:
                     # final layer -> no dendrites
-                    W = tf.get_variable('W', initializer = tf.random_uniform([par['layer_dims'][n],par['layer_dims'][n+1]], -1/np.sqrt(par['layer_dims'][n]), 1/np.sqrt(par['layer_dims'][n])), trainable = True)
+                    W = tf.get_variable('W', initializer = tf.random_uniform([par['layer_dims'][n],par['layer_dims'][n+1]], \
+                        -1/np.sqrt(par['layer_dims'][n]), 1/np.sqrt(par['layer_dims'][n])), trainable = True)
                     b = tf.get_variable('b', initializer = tf.zeros([1,par['layer_dims'][n+1]]), trainable = True)
 
 
                 if n < par['n_layers']-2:
-                    dend_activity = tf.nn.relu(tf.tensordot(self.x, W_effective, ([1],[0]))  + b_effective)
+                    #dend_activity = tf.nn.relu(tf.tensordot(self.x, W_effective, ([1],[0]))  + b_effective)
+                    dend_activity = tf.nn.relu(tf.tensordot(self.x, W, ([1],[0]))  + b)
+                    dend_activity = proj_W_td*dend_activity
+                    print('proj_W_td',proj_W_td)
+                    print('dend_activity', dend_activity)
                     self.x = tf.nn.dropout(tf.reduce_sum(dend_activity, axis=1), self.droput_keep_pct)
                     self.spike_loss += tf.reduce_sum(self.x)
                     self.neuron_activity.append(self.x)
@@ -78,7 +86,8 @@ class Model:
 
                 else:
                     if par['dendrites_final_layer']:
-                        dend_activity = tf.tensordot(self.x, W_effective, ([1],[0])) + b_effective
+                        dend_activity = tf.tensordot(self.x, W, ([1],[0])) + b
+                        dend_activity = proj_W_td*dend_activity
                         # Want to ensure that masked out values don't contribute to softmax
                         self.y = self.mask*tf.nn.softmax(tf.reduce_sum(dend_activity, axis=1) - (1-self.mask)*1e32, dim = 1)
                         self.dendrite_activity.append(dend_activity)
@@ -141,6 +150,8 @@ class Model:
         # Gradient of the loss+aux function, in order to both perform training and to compute delta_weights
         self.spike_loss /= np.sum(par['layer_dims'][1:-1])
         self.train_op = adam_optimizer.compute_gradients(self.task_loss + self.aux_loss)
+        #self.train_op = adam_optimizer.compute_gradients_with_competition(self.task_loss + self.aux_loss, \
+            #self.big_omega_var)
 
         if par['stabilization'] == 'pathint':
             # Zenke method
@@ -236,7 +247,8 @@ def main(save_fn):
     td  = tf.placeholder(tf.float32, [1, par['n_td']], 'TD')
     y   = tf.placeholder(tf.float32, [par['batch_size'], par['layer_dims'][-1]], 'out')
     mask   = tf.placeholder(tf.float32, [par['batch_size'], par['layer_dims'][-1]], 'mask')
-    droput_keep_pct = tf.placeholder(tf.float32, [] , 'dropout')
+    droput_keep_pct = tf.placeholder(tf.float32, [], 'dropout')
+    input_droput_keep_pct = tf.placeholder(tf.float32, [], 'input_dropout')
 
 
     stim = stimulus.Stimulus()
@@ -244,7 +256,7 @@ def main(save_fn):
 
     with tf.Session() as sess:
 
-        model = Model(x, td, y, mask, droput_keep_pct)
+        model = Model(x, td, y, mask, droput_keep_pct, input_droput_keep_pct)
         sess.run(tf.global_variables_initializer())
         t_start = time.time()
         sess.run(model.reset_prev_vars)
@@ -253,24 +265,23 @@ def main(save_fn):
 
             for i in range(par['n_train_batches']):
 
-                #dp = 1 - par['keep_pct']*(0.998**i)
-                dp = par['keep_pct']
-
                 stim_in, y_hat, td_in, mk = stim.make_batch(task, test = False)
                 if par['stabilization'] == 'pathint':
 
                     # Breaking session.run into two steps appears to be important
                     # Might want to consider using tf.control_dependencies to ensure fetches performed in correct order
-                    _,loss,spike_loss,AL = sess.run([model.train_op, model.task_loss,model.spike_loss, \
-                        model.aux_loss], feed_dict={x:stim_in, td:td_in, y:y_hat, mask:mk, droput_keep_pct:dp})
-                    _,dg = sess.run([model.update_small_omega, \
-                        model.delta_grads], feed_dict={x:stim_in, td:td_in, y:y_hat, mask:mk, droput_keep_pct:dp})
+                    _,loss,spike_loss,AL = sess.run([model.train_op, model.task_loss,model.spike_loss, model.aux_loss], feed_dict = \
+                        {x:stim_in, td:td_in, y:y_hat, mask:mk, droput_keep_pct:par['drop_keep_pct'], input_droput_keep_pct:par['input_drop_keep_pct']})
+                    _,dg = sess.run([model.update_small_omega, model.delta_grads], feed_dict = \
+                        {x:stim_in, td:td_in, y:y_hat, mask:mk, droput_keep_pct:par['drop_keep_pct'], input_droput_keep_pct:par['input_drop_keep_pct']})
+
+
 
                 elif par['stabilization'] == 'EWC':
-                    _,loss,spike_loss,AL = sess.run([model.train_op, model.task_loss,model.spike_loss, \
-                        model.aux_loss], feed_dict={x:stim_in, td:td_in, y:y_hat, mask:mk, droput_keep_pct:par['keep_pct']})
+                    _,loss,spike_loss,AL = sess.run([model.train_op, model.task_loss,model.spike_loss, model.aux_loss], feed_dict = \
+                        {x:stim_in, td:td_in, y:y_hat, mask:mk, droput_keep_pct:par['drop_keep_pct'], input_droput_keep_pct:par['input_drop_keep_pct']})
 
-                if i//400 == i/400:
+                if i//1000 == i/1000:
                     print('Iter: ', i, 'Loss: ', loss, 'Aux Loss: ',  AL, 'Spike cost:', spike_loss)
 
 
@@ -281,9 +292,9 @@ def main(save_fn):
             elif par['stabilization'] == 'EWC':
                 for n in range(par['batch_size']):
                     stim_in, y_hat, td_in, mk = stim.make_batch(task, test = False)
-                    big_omegas = sess.run([model.update_big_omega,model.big_omega_var],feed_dict={x:stim_in, td:td_in, mask:mk, droput_keep_pct:1.0})
+                    big_omegas = sess.run([model.update_big_omega,model.big_omega_var], feed_dict = \
+                        {x:stim_in, td:td_in, mask:mk, droput_keep_pct:1.0, input_droput_keep_pct:1.0})
 
-            #big_omegas = sess.run(model.big_omega_var)
             sess.run(model.reset_adam_op)
             #print('No ADAM reset')
             sess.run(model.reset_prev_vars)
@@ -296,7 +307,7 @@ def main(save_fn):
                 for r in range(num_test_reps):
                     stim_in, y_hat, td_in, mk = stim.make_batch(test_task, test = True)
                     accuracy[test_task] += sess.run(model.accuracy, feed_dict={x:stim_in, \
-                        td:td_in, y:y_hat, mask:mk,droput_keep_pct:1.0})/num_test_reps
+                        td:td_in, y:y_hat, mask:mk,droput_keep_pct:1.0, input_droput_keep_pct:1.0})/num_test_reps
                     """
                     if task+1 == par['n_tasks']:
                         # extract tuning
