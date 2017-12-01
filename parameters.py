@@ -16,12 +16,11 @@ global par
 
 par = {
     # General parameters
-    'save_dir'              : './savedir/perm_mnist_no_topdown/',
+    'save_dir'              : './savedir/',
     'loss_function'         : 'cross_entropy',    # cross_entropy or MSE
-    'stabilization'         : 'pathinit', # 'EWC' (Kirkpatrick method) or 'pathint' (Zenke method)
+    'stabilization'         : 'pathint', # 'EWC' (Kirkpatrick method) or 'pathint' (Zenke method)
     'learning_rate'         : 0.001,
-    'train_top_down'        : False,
-    'task'                  : 'mnist',
+    'task'                  : 'cifar',
     'save_analysis'         : True,
     'train_convolutional_layers' : False,
 
@@ -32,8 +31,8 @@ par = {
     # Network shape
     'n_td'                  : 100,
     'n_dendrites'           : 1,
-    'layer_dims'            : [28**2, 100, 100, 10], # mnist
-    #'layer_dims'            : [4096, 500, 500, 100], #cifar
+    #'layer_dims'            : [28**2, 100, 100, 10], # mnist
+    'layer_dims'            : [4096, 500, 500, 100], #cifar
     'dendrites_final_layer' : False,
     'pct_active_neurons'    : 1.0,
 
@@ -54,7 +53,10 @@ par = {
 
     # Projection of top-down activity
     # Only one can be True
-    'clamp'                 : 'dendrites', # can be either 'dendrites', 'neurons', 'bias' or None
+    'clamp'                 : 'dendrites', # can be either 'dendrites', 'neurons', 'partial' or None
+
+    'EWC_fisher_calc_batch' : 64, # batch size when calculating EWC
+    'EWC_fisher_num_batches': 64, # number of batches size when calculating EWC
 
 }
 
@@ -95,11 +97,19 @@ def gen_td_targets():
                             Wtd[t+j,d,i] = 1
 
             elif par['clamp'] == 'neurons':
+                """
                 for t in range(0, par['n_tasks'], m):
                     q = np.random.permutation(m)[0]
                     if t+q<par['n_tasks']:
                         td[t+q,:,i] = 1
                         Wtd[t+q,:,i] = 1
+                """
+                for t in range(0, par['n_tasks']):
+                    if np.random.rand() < 1/m:
+                        td[t,:,i] = 1
+                        Wtd[t,:,i] = 1
+
+
 
             elif par['clamp'] == 'split':
                 for t in range(0, par['n_tasks']):
@@ -111,7 +121,7 @@ def gen_td_targets():
                             td[t,:,i] = 1
                             Wtd[t,:,i] = 1
 
-            elif par['clamp'] == 'bias':
+            elif par['clamp'] == 'partial':
                 for t in range(0, par['n_tasks']):
                     if np.random.rand(1) < 0.5:
                         td[t,:,i] = 0.5
@@ -149,5 +159,5 @@ def update_parameters(updates):
     update_dependencies()
 
 
-#update_dependencies()
+update_dependencies()
 print("--> Parameters successfully loaded.\n")

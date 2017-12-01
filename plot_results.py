@@ -3,11 +3,262 @@ import matplotlib.pyplot as plt
 import pickle
 import os
 import matplotlib
+
+from mpl_toolkits.axes_grid1.inset_locator import zoomed_inset_axes
+from mpl_toolkits.axes_grid1.inset_locator import mark_inset
+
 matplotlib.rcParams['pdf.fonttype'] = 42
 matplotlib.rcParams['ps.fonttype'] = 42
 plt.rcParams["font.family"] = "arial"
 
 data_dir = 'C:/Users/nicol/Projects/GitHub/Spin-TD-Network/savedir/perm_mnist_no_topdown'
+
+def plot_fig2():
+
+    all_same_scale = True
+
+    f, ((ax1,ax2),(ax3,ax4)) = plt.subplots(2,2,figsize=(8,6))
+
+    # Figure 2A
+    # Plotting: SI, EWC, base
+    # No dropout on input layer
+    base    = 'mnist_n2000_no_stabilization'
+    EWC     = 'mnist_n2000_EWC'
+    SI      = 'perm_mnist_n2000_d1_no_topdown'
+
+    b1 = plot_best_result(ax1, './savedir/perm_mnist/archive1/', base, col=[1,0,0], label='Base')
+    b3 = plot_best_result(ax1, './savedir/perm_mnist/archive0/', SI, col=[0,0,1], label='SI')
+    b2 = plot_best_result(ax1, './savedir/perm_mnist/archive1/', EWC, col=[0,1,0], label='EWC')
+
+    ax1.legend(ncol=3, fontsize=9)
+    ax1.grid(True)
+    ax1.set_xlim(0,100)
+    add_subplot_details(ax1, [0.0,1],[])
+
+    # Figure 2B
+    # Plotting: SI+TD Partial, SI, EWC+TD Partial, EWC
+    # No dropout on input layer
+    SI_TDP  = 'perm_mnist_n2000_d1_bias'
+    SI      = 'perm_mnist_n2000_d1_no_topdown'
+    EWC_TDP = 'perm_mnist_n2000_d1_EWC_bias'
+    EWC     = 'mnist_n2000_EWC'
+
+    b2 = plot_best_result(ax2, './savedir/perm_mnist/archive0/', SI, col=[0,0,1], label='SI')
+    b4 = plot_best_result(ax2, './savedir/perm_mnist/archive1/', EWC, col=[0,1,0], label='EWC')
+    b1 = plot_best_result(ax2, './savedir/perm_mnist/archive0/', SI_TDP, col=[0,0.7,0.7], label='SI+TD Par.')
+    b3 = plot_best_result(ax2, './savedir/perm_mnist/archive1/', EWC_TDP, col=[0.7,0,0.7], label='EWC+TD Par.')
+
+    ax2.legend(ncol=2, fontsize=9)
+    ax2.grid(True)
+    ax2.set_xlim(0,100)
+    add_subplot_details(ax2, [0.0,1],[])
+
+
+    # Figure 2C
+    # Plotting: SI+TD Partial Split, SI+TD Partial, EWC+TD Partial, EWC+TD Partial Split
+    # Dropout irrelevant?
+    SI_TDPS  = 'mnist_n2000_pathint_split_oc'
+    SI_TDP   = 'perm_mnist_n2000_d1_bias'
+    EWC_TDPS = 'mnist_n2000_EWC_split_oc'
+    EWC_TDP  = 'perm_mnist_n2000_d1_EWC_bias'
+
+    b1 = plot_best_result(ax3, './savedir/perm_mnist/archive0/', SI_TDP, col=[0,0.7,0.7], label='SI+TD Par.')
+    b3 = plot_best_result(ax3, './savedir/perm_mnist/archive1/', EWC_TDP, col=[0.7,0,0.7], label='EWC+TD Par.')
+    b2 = plot_best_result(ax3, './savedir/perm_mnist/archive2/', SI_TDPS, col=[0.7,0.7,0], label='Split SI+TD Par.')
+    b4 = plot_best_result(ax3, './savedir/perm_mnist/archive2/', EWC_TDPS, col=[0.7,0.7,0.7],label='Split EWC+TD Par.')
+
+    ax3.legend(ncol=2, fontsize=9)
+    ax3.grid(True)
+    ax3.set_xlim(0,100)
+    add_subplot_details(ax3, [0.0,1],[])
+
+
+    # Figure 2D
+    # Plotting: SI+TD Partial Split, SI+TD Full, EWC+TD Full, EWC+TD Partial Split
+    # Dropout irrelevant?
+    SI_TD    = 'perm_mnist_n2000_d1_1of5'
+    SI_TDPS  = 'mnist_n2000_pathint_split_oc'
+    EWC_TD   = 'perm_mnist_n2000_d1_EWC_1of5'
+    EWC_TDPS = 'mnist_n2000_EWC_split_oc'
+
+    b2 = plot_best_result(ax4, './savedir/perm_mnist/archive2/', SI_TDPS, col=[0.7,0.7,0], label='Split SI+TD Par.')
+    b4 = plot_best_result(ax4, './savedir/perm_mnist/archive2/', EWC_TDPS, col=[0.7,0.7,0.7],label='Split EWC+TD Par.')
+    b1 = plot_best_result(ax4, './savedir/perm_mnist/archive0/', SI_TD, col=[0,0,1], label='SI+TD Full')
+    b3 = plot_best_result(ax4, './savedir/perm_mnist/archive1/', EWC_TD, col=[0,1,0], label='EWC+TD Full')
+
+    ax4.grid(True)
+    ax4.set_xlim(0,100)
+    add_subplot_details(ax4, [0.0,1],[])
+    ax4.legend(ncol=2, fontsize=9)
+
+
+    plt.tight_layout()
+    plt.show()
+
+
+def mnist_table():
+    savedir = './savedir/perm_mnist/archive'
+
+    base     = 'mnist_n2000_no_stabilization'     # archive1
+    SI       = 'perm_mnist_n2000_d1_no_topdown'   # archive0
+    EWC      = 'mnist_n2000_EWC'                  # archive1
+
+    SI_TDP   = 'perm_mnist_n2000_d1_bias'         # archive0
+    EWC_TDP  = 'perm_mnist_n2000_d1_EWC_bias'     # archive1
+
+    SI_TDPS  = 'mnist_n2000_pathint_split_oc'     # archive2
+    EWC_TDPS = 'mnist_n2000_EWC_split_oc'         # archive2
+
+    SI_TDF   = 'perm_mnist_n2000_d1_1of5'         # archive0
+    EWC_TDF  = 'perm_mnist_n2000_d1_EWC_1of5'     # archive1
+
+    archs = [1,0,1,0,1,2,2,0,1]
+    names = ['Base', 'SI', 'EWC', 'SI + Partial', 'EWC + Partial', \
+             'SI + Partial + Split', 'EWC + Partial + Split',\
+             'SI + Full', 'EWC + Full']
+    locs  = [base, SI, EWC, SI_TDP, EWC_TDP, SI_TDPS, EWC_TDPS, SI_TDF, EWC_TDF]
+
+    with open('mnist_table_data.tsv', 'w') as f:
+        f.write('Name\tC\tT1\tT10\tT20\tT50\tT100\n')
+        for a, s, n in zip(archs, locs, names):
+            c_opt, acc = retrieve_best_result(savedir+str(a)+'/', s)
+            f.write(n + '\t' + str(c_opt) + '\t' + str(acc[0])
+                                          + '\t' + str(acc[9])
+                                          + '\t' + str(acc[19])
+                                          + '\t' + str(acc[49])
+                                          + '\t' + str(acc[99]) + '\n')
+
+
+def cifar_table():
+    savedir = './savedir/'
+
+    base     = 'cifar_n2000_no_stabilization'
+    SI       = 'cifar_n2000_pathint'
+    EWC      = 'cifar_n2000_EWC'
+
+    SI_TDP   = 'cifar_n2000_partial_pathint'
+    EWC_TDP  = 'cifar_n2000_partial_EWC'
+
+    SI_TDPS  = 'cifar_n2000_split_pathint'
+    EWC_TDPS = 'cifar_n2000_split_EWC'
+
+    SI_TDF   = 'cifar_n2000_full_pathint'
+    EWC_TDF  = 'cifar_n2000_full_EWC'
+
+    names = ['Base', 'SI', 'EWC', 'SI + Partial', 'EWC + Partial', \
+             'SI + Partial + Split', 'EWC + Partial + Split',\
+             'SI + Full', 'EWC + Full']
+    locs  = [base, SI, EWC, SI_TDP, EWC_TDP, SI_TDPS, EWC_TDPS, SI_TDF, EWC_TDF]
+
+    with open('cifar_table_data.tsv', 'w') as f:
+        f.write('Name\tC\tT1\tT10\tT20\tT50\tT100\n')
+        for s, n in zip(locs, names):
+            c_opt, acc = retrieve_best_result(savedir, s)
+            f.write(n + '\t' + str(c_opt) + '\t' + str(acc[0])
+                                          + '\t' + str(acc[9])
+                                          + '\t' + str(acc[19])
+                                          + '\t' + str(acc[49])
+                                          + '\t' + str(acc[99]) + '\n')
+
+
+
+def fig2_inset():
+    f, ax = plt.subplots(1,1)
+    # Figure 2D
+    # Plotting: SI+TD Partial Split, SI+TD Full, EWC+TD Full, EWC+TD Partial Split
+    # Dropout irrelevant?
+    SI_TD    = 'perm_mnist_n2000_d1_1of5'
+    SI_TDPS  = 'mnist_n2000_pathint_split_oc'
+    EWC_TD   = 'perm_mnist_n2000_d1_EWC_1of5'
+    EWC_TDPS = 'mnist_n2000_EWC_split_oc'
+
+    b2 = plot_best_result(ax, './savedir/perm_mnist/archive2/', SI_TDPS, col=[0.7,0.7,0], label='Split SI+TD Par.')
+    b4 = plot_best_result(ax, './savedir/perm_mnist/archive2/', EWC_TDPS, col=[0.7,0.7,0.7],label='Split EWC+TD Par.')
+    b1 = plot_best_result(ax, './savedir/perm_mnist/archive0/', SI_TD, col=[0,0,1], label='SI+TD Full')
+    b3 = plot_best_result(ax, './savedir/perm_mnist/archive1/', EWC_TD, col=[0,1,0], label='EWC+TD Full')
+    ax.grid(True)
+    ax.set_yticks([0.85,0.90,0.95,1.0])
+    ax.set_xlim(0,100)
+    add_subplot_details(ax, [0.85,1],[])
+
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_fig3():
+    f, ((ax1,ax2),(ax3,ax4)) = plt.subplots(2,2,figsize=(8,6))
+
+    # Figure 3A
+    # Plotting: SI, EWC, base
+    # No dropout on input layer
+    base    = 'cifar_n2000_no_stabilization'
+    EWC     = 'cifar_n2000_EWC'
+    SI      = 'cifar_n2000_pathint'
+
+    b1 = plot_best_result(ax1, './savedir/', base, col=[1,0,0], label='base')
+    b2 = plot_best_result(ax1, './savedir/', EWC, col=[0,1,0], label='EWC')
+    b3 = plot_best_result(ax1, './savedir/', SI, col=[0,0,1], label='SI')
+
+    ax1.legend(ncol=3, fontsize=9)
+    ax1.grid(True)
+    add_subplot_details(ax1, [0.0,1],[])
+
+    # Figure 3B
+    # Plotting: SI+TD Partial, SI, EWC+TD Partial, EWC
+    # No dropout on input layer
+    SI_TDP  = 'cifar_n2000_partial_pathint'
+    SI      = 'cifar_n2000_pathint'
+    EWC_TDP = 'cifar_n2000_partial_EWC'
+    EWC     = 'cifar_n2000_EWC'
+
+    b2 = plot_best_result(ax2, './savedir/', SI, col=[0,0,1], label='SI')
+    b4 = plot_best_result(ax2, './savedir/', EWC, col=[0,1,0], label='EWC')
+    b1 = plot_best_result(ax2, './savedir/', SI_TDP, col=[0,0.7,0.7], label='SI+TD Par.')
+    b3 = plot_best_result(ax2, './savedir/', EWC_TDP, col=[0.7,0,0.7], label='EWC+TD Par.')
+
+    ax2.set_xlim(0,100)
+    ax2.legend(ncol=2, fontsize=9)
+    ax2.grid(True)
+    add_subplot_details(ax2, [0.0,1],[])
+
+    # Figure 3C
+    # Plotting: SI+TD Partial Split, SI+TD Partial, EWC+TD Partial, EWC+TD Partial Split
+    # Dropout irrelevant?
+    SI_TDPS  = 'cifar_n2000_split_pathint'
+    SI_TDP   = 'cifar_n2000_partial_pathint'
+    EWC_TDPS = 'cifar_n2000_split_EWC'
+    EWC_TDP  = 'cifar_n2000_partial_EWC'
+
+    b1 = plot_best_result(ax3, './savedir/', SI_TDP, col=[0,0.7,0.7], label='SI+TD Par.')
+    b3 = plot_best_result(ax3, './savedir/', EWC_TDP, col=[0.7,0,0.7], label='EWC+TD Par.')
+    b2 = plot_best_result(ax3, './savedir/', SI_TDPS, col=[0.7,0.7,0], label='Split SI+TD Par.')
+    b4 = plot_best_result(ax3, './savedir/', EWC_TDPS, col=[0.7,0.7,0.7],label='Split EWC+TD Par.')
+
+    ax3.set_xlim(0,100)
+    ax3.legend(ncol=2, fontsize=9)
+    ax3.grid(True)
+    add_subplot_details(ax3, [0.0,1],[])
+
+    # Figure 3D
+    # Plotting: SI+TD Partial Split, SI+TD Full, EWC+TD Full, EWC+TD Partial Split
+    # Dropout irrelevant?
+    SI_TD    = 'cifar_n2000_full_pathint'
+    SI_TDPS  = 'cifar_n2000_split_pathint'
+    EWC_TD   = 'cifar_n2000_full_EWC'
+    EWC_TDPS = 'cifar_n2000_split_EWC'
+
+    b2 = plot_best_result(ax4, './savedir/', SI_TDPS, col=[0.7,0.7,0], label='Split SI+TD Par.')
+    b4 = plot_best_result(ax4, './savedir/', EWC_TDPS, col=[0.7,0.7,0.7],label='Split EWC+TD Par.')
+    b1 = plot_best_result(ax4, './savedir/', SI_TD, col=[0,0,1], label='SI+TD Full')
+    b3 = plot_best_result(ax4, './savedir/', EWC_TD, col=[0,1,0], label='EWC+TD Full')
+
+    ax4.set_xlim(0,100)
+    ax4.legend(ncol=2, fontsize=9)
+    ax4.grid(True)
+    add_subplot_details(ax4, [0.0,1],[])
+
+    plt.tight_layout()
+    plt.show()
 
 def plot_mnist_figure():
 
@@ -62,7 +313,7 @@ def add_subplot_details(ax, ylim = [0,1], yminor = []):
     ax.set_ylabel('Mean task accuracy')
     ax.set_xlabel('Task number')
 
-def plot_best_result(ax, data_dir, fn, col = [0,0,1], split = 1, description = []):
+def plot_best_result(ax, data_dir, fn, col = [0,0,1], split = 1, description = [], label=None):
 
     best_accuracy = -1
     for file in os.listdir(data_dir):
@@ -81,4 +332,26 @@ def plot_best_result(ax, data_dir, fn, col = [0,0,1], split = 1, description = [
         print(description , ' ACC after 10 trials = ', task_accuracy[9],  ' after 30 trials = ', task_accuracy[29],  \
             ' after 100 trials = ', task_accuracy[99])
 
-    ax.plot(task_accuracy, color = col)
+    ax.plot(np.arange(1, np.shape(task_accuracy)[0]+1), task_accuracy, color = col, label=label)
+
+    return best_accuracy
+
+def retrieve_best_result(data_dir, fn):
+    best_accuracy = -1
+    val_c = 0.
+    for f in os.listdir(data_dir):
+        if f.startswith(fn):
+            x = pickle.load(open(data_dir+f, 'rb'))
+            if x['accuracy_full'][-1] > best_accuracy:
+                best_accuracy = x['accuracy_full'][-1]
+                task_accuracy = x['accuracy_full']
+                val_c         = x['par']['omega_c']
+
+    return val_c, task_accuracy
+
+
+mnist_table()
+cifar_table()
+#plot_fig3()
+#plot_fig2()
+#fig2_inset()

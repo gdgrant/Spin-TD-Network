@@ -5,6 +5,7 @@
 import numpy as np
 from parameters import *
 import pickle
+import matplotlib.pyplot as plt
 
 
 class Stimulus:
@@ -146,7 +147,7 @@ class Stimulus:
     def make_batch(self, task_num, test=False):
 
         # Allow for random interleaving
-        task_num = np.random.randint(par['n_tasks']) if task_num==-1 else task_num
+        task_num = np.random.randint(par['n_tasks']) if task_num<0 else task_num
 
         if par['task'] == 'mnist':
             batch_data, batch_labels = self.generate_mnist_batch(task_num, test)

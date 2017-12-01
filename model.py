@@ -8,6 +8,8 @@ import pickle
 import top_down
 import matplotlib.pyplot as plt
 
+os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID" # so the IDs match nvidia-smi
+
 
 # Ignore startup TensorFlow warnings
 os.environ['TF_CPP_MIN_LOG_LEVEL']='2'
@@ -170,6 +172,7 @@ class Model:
 
     def EWC(self, variables):
         # Kirkpatrick method
+        epsilon = 1e-9
 
         #for var in self.variables:
             #self.fisher_mat[var.op.name] = tf.Variable(tf.zeros(var.get_shape()), trainable=False)
@@ -177,12 +180,12 @@ class Model:
         opt = tf.train.GradientDescentOptimizer(1)
         y_unstacked = tf.unstack(self.y, axis = 0)
         #for y in y_unstacked:
-        for y1 in tf.unstack(y_unstacked[0]):
-            grads_and_vars = opt.compute_gradients(tf.log(y1))
+        for y1 in tf.unstack(y_unstacked[:par['EWC_fisher_calc_batch']]):
+            grads_and_vars = opt.compute_gradients(tf.log(y1 + epsilon))
             for grad, var in grads_and_vars:
                 print(var.op.name, grad)
                 fisher_ops.append(tf.assign_add(self.big_omega_var[var.op.name], \
-                    grad*grad/par['batch_size']/par['layer_dims'][-1]))
+                    grad*grad/par['EWC_fisher_calc_batch']/par['EWC_fisher_num_batches']/par['layer_dims'][-1]))
 
         self.update_big_omega = tf.group(*fisher_ops)
 
@@ -225,10 +228,11 @@ class Model:
 
         self.update_small_omega = tf.group(*update_small_omega_ops) # 1) update small_omega after each train!
 
-def main(save_fn):
+def main(save_fn, gpu_id):
+
+    os.environ["CUDA_VISIBLE_DEVICES"] = gpu_id
 
     #determine_top_down_weights()
-
     if par['task'] == 'cifar' and par['train_convolutional_layers']:
         top_down.ConvolutionalLayers()
 
@@ -256,8 +260,11 @@ def main(save_fn):
 
     with tf.Session() as sess:
 
-        model = Model(x, td, y, mask, droput_keep_pct, input_droput_keep_pct)
-        sess.run(tf.global_variables_initializer())
+        #with tf.device("/gpu:"+str(gpu_id)):
+        with tf.device("/gpu:0"):
+            model = Model(x, td, y, mask, droput_keep_pct, input_droput_keep_pct)
+            init = tf.global_variables_initializer()
+        sess.run(init)
         t_start = time.time()
         sess.run(model.reset_prev_vars)
 
@@ -290,7 +297,7 @@ def main(save_fn):
                 #sess.run(model.update_big_omega,feed_dict={x:stim_in, td:td_in, mask:mk, droput_keep_pct:1.0})
                 big_omegas = sess.run([model.update_big_omega, model.big_omega_var])
             elif par['stabilization'] == 'EWC':
-                for n in range(par['batch_size']):
+                for n in range(par['EWC_fisher_num_batches']):
                     stim_in, y_hat, td_in, mk = stim.make_batch(task, test = False)
                     big_omegas = sess.run([model.update_big_omega,model.big_omega_var], feed_dict = \
                         {x:stim_in, td:td_in, mask:mk, droput_keep_pct:1.0, input_droput_keep_pct:1.0})
