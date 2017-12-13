@@ -35,6 +35,7 @@ par = {
     'layer_dims'            : [4096, 500, 500, 100], #cifar
     'dendrites_final_layer' : False,
     'pct_active_neurons'    : 1.0,
+    'multihead'             : False, # option for CIFAR task, do we use different output neurons for each label nad add a mask, or recycle them
 
     # Dropout
     'drop_keep_pct'         : 0.5,
@@ -53,9 +54,9 @@ par = {
 
     # Projection of top-down activity
     # Only one can be True
-    'clamp'                 : 'dendrites', # can be either 'dendrites', 'neurons', 'partial' or None
+    'clamp'                 : None, # can be either 'dendrites', 'neurons', 'partial' or None
 
-    'EWC_fisher_calc_batch' : 64, # batch size when calculating EWC
+    'EWC_fisher_calc_batch' : 128, # batch size when calculating EWC
     'EWC_fisher_num_batches': 64, # number of batches size when calculating EWC
 
 }

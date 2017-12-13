@@ -104,18 +104,27 @@ class Stimulus:
         # Pick out batch data and labels
         batch_data   = np.zeros((par['batch_size'], 32,32,3), dtype = np.float32)
         batch_labels = np.zeros((par['batch_size'], par['layer_dims'][-1]), dtype = np.float32)
-        mask = np.zeros((par['batch_size'], par['layer_dims'][-1]), dtype = np.float32)
-        mask[:, task_num*self.cifar_labels_per_task:(task_num+1)*self.cifar_labels_per_task] = 1
+        if par['multihead']:
+            mask = np.zeros((par['batch_size'], par['layer_dims'][-1]), dtype = np.float32)
+            mask[:, task_num*self.cifar_labels_per_task:(task_num+1)*self.cifar_labels_per_task] = 1
+        else:
+            mask = np.ones((par['batch_size'], par['layer_dims'][-1]), dtype = np.float32)
 
         for i in range(par['batch_size']):
             if test:
-                #k = int(self.cifar_test_labels[ind[q[i]]] - task_num*self.cifar_labels_per_task)
-                k = int(self.cifar_test_labels[ind[q[i]]])
+                if par['multihead']:
+                    k = int(self.cifar_test_labels[ind[q[i]]])
+                else:
+                    k = self.cifar_test_labels[ind[q[i]]][0]%5 # - task_num*self.cifar_labels_per_task)
+
                 batch_labels[i, k] = 1
                 batch_data[i, :] = np.float32(np.reshape(self.cifar_test_images[ind[q[i]], :],(1,32,32,3), order='F'))/255
             else:
-                #k = int(self.cifar_train_labels[ind[q[i]]] - task_num*self.cifar_labels_per_task)
-                k = int(self.cifar_train_labels[ind[q[i]]])
+                if par['multihead']:
+                    k = int(self.cifar_train_labels[ind[q[i]]])
+                else:
+                    k = self.cifar_train_labels[ind[q[i]]][0]%5 #int(self.cifar_train_labels[ind[q[i]]] - task_num*self.cifar_labels_per_task)
+
                 batch_labels[i, k] = 1
                 batch_data[i, :] = np.float32(np.reshape(self.cifar_train_images[ind[q[i]], :],(1,32,32,3), order='F'))/255
 
