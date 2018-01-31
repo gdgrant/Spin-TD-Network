@@ -31,7 +31,7 @@ class AdamOpt:
             self.v[var.op.name]  = tf.Variable(tf.zeros(var.get_shape()), trainable=False)
             self.delta_grads[var.op.name]  = tf.Variable(tf.zeros(var.get_shape()), trainable=False)
 
-        self.grad_descent = tf.train.GradientDescentOptimizer(learning_rate = learning_rate)
+        self.grad_descent = tf.train.GradientDescentOptimizer(learning_rate = 1.0)
 
 
     def reset_params(self):
@@ -70,27 +70,6 @@ class AdamOpt:
 
         return tf.group(*self.update_var_op)
 
-    def dendritic_competition(self, delta_grad, var_name):
-        # Currently unused, might delete in future
-        
-        corrected_delta_grads = []
-
-        if var_name.find('W') == -1 or var_name.find('2') > 0:
-            return delta_grad
-        else:
-            print(var_name, var_name.find('2'))
-            delta_grad_branches = tf.unstack(delta_grad, axis=2)
-            corrected_delta_grads = []
-
-            # cycle through dendrites, post-synaptic neurons
-            for delta_branch in delta_grad_branches:
-                #corrected_delta_grads.append(delta_branch*tf.nn.softmax(tf.abs(3*delta_branch), dim = 0))
-                s = tf.exp(tf.abs(delta_branch))
-                corrected_delta_grads.append(delta_branch*s/(1e-6+tf.reduce_mean(s)))
-
-            corrected_delta_grads = tf.stack(corrected_delta_grads, axis = 2)
-            print(var_name, ' corrected_delta_grads', corrected_delta_grads)
-            return corrected_delta_grads
 
     def return_delta_grads(self):
         return self.delta_grads

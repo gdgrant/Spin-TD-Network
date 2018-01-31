@@ -14,12 +14,175 @@ plt.rcParams["font.family"] = "arial"
 
 data_dir = 'C:/Users/nicol/Projects/GitHub/Spin-TD-Network/savedir/perm_mnist_no_topdown'
 
-def plot_fig2():
+def plot_RNN_fig():
+
+    savedir = '/home/masse/Short-term-plasticity-RNN/savedir/CL3/'
+    all_same_scale = True
+
+    f, ax1 = plt.subplots(1,1,figsize=(4,3))
+
+    # Figure 2A
+    # Plotting: SI, EWC, base
+    # No dropout on input layer
+    SI      = 'RNN_CL_SI_short_h500_gating0'
+    SI_TD    = 'RNN_CL_SI_short_h500_gating75'
+
+
+    b0 = plot_best_result(ax1, savedir, SI, col=[0,0,1], label='SI')
+    b1 = plot_best_result(ax1, savedir, SI_TD, col=[0,1,0], label='SI+TD Full')
+
+    print('A: ', b0 , b1)
+
+
+    ax1.legend(ncol=3, fontsize=9)
+    ax1.grid(True)
+    ax1.set_xlim(0,17)
+    add_subplot_details(ax1, [0.5,1],[0,25],[])
+    ax1.set_xticks([4,8,12,16,20,24])
+
+
+    plt.tight_layout()
+    plt.savefig('Figure_ONR.pdf', format='pdf')
+    plt.show()
+
+def plot_ONR_fig1():
 
     savedir = './savedir/mnist/'
     all_same_scale = True
 
+    f, (ax1,ax2) = plt.subplots(2,1,figsize=(3,6))
+
+    # Figure 2A
+    # Plotting: SI, EWC, base
+    # No dropout on input layer
+    #base    = 'mnist_no_stabilization'
+    EWC     = 'mnist_EWC'
+    SI      = 'mnist_SI'
+    SI_TD    = 'neurons_InpDO_mnist_SI'
+    EWC_TD   = 'neurons_InpDO_mnist_EWC'
+
+
+    b3 = plot_best_result(ax1, savedir, SI, col=[0,0,1], label='SI')
+    b2 = plot_best_result(ax1, savedir, EWC, col=[1,0,0], label='EWC')
+    b5 = plot_best_result(ax1, savedir, EWC_TD, col=[1,0,1], label='EWC+TD Full',linestyle='--')
+    b4 = plot_best_result(ax1, savedir, SI_TD, col=[0,1,0], label='SI+TD Full')
+
+    print('A: ', b2, b3, b4, b5)
+
+
+    ax1.legend(ncol=3, fontsize=9)
+    ax1.grid(True)
+    ax1.set_xlim(0,100)
+    add_subplot_details(ax1, [0.0,1],[0,100],[])
+
+    savedir = './savedir/cifar/'
+
+    #base    = 'cifar_no_stabilization'
+    EWC     = 'cifar_EWC'
+    SI      = 'cifar_SI'
+    SI_TD    = 'neurons_cifar_SI'
+    EWC_TD   = 'neurons_cifar_EWC'
+
+    #b1 = plot_best_result(ax2, savedir, base, col=[0,0,0], label='base')
+    b2 = plot_best_result(ax2, savedir, EWC, col=[1,0,0], label='EWC')
+    b3 = plot_best_result(ax2, savedir, SI, col=[0,0,1], label='SI')
+    b4 = plot_best_result(ax2, savedir, SI_TD, col=[0,1,0], label='SI+TD Full')
+    b5 = plot_best_result(ax2, savedir, EWC_TD, col=[1,0,1], label='EWC+TD Full',linestyle='--')
+
+    print('B: ', b2, b3, b4, b5)
+
+    ax2.legend(ncol=3, fontsize=9)
+    ax2.grid(True)
+    add_subplot_details(ax2, ylim = [0,1], xlim = [0,20])
+
+
+    plt.tight_layout()
+    plt.savefig('Figure_ONR.pdf', format='pdf')
+    plt.show()
+
+def plot_fig3():
+
+    savedir = './savedir/mnist/'
+    all_same_scale = True
+    f, ax1 = plt.subplots(1,1,figsize=(4,3))
+    accuracy = {}
+
+    # Figure 2A
+    # Plotting: SI, EWC, base
+    # No dropout on input layer
+    SI_5  = 'neurons_InpDO_mnist_SI'
+    SI_2  = 'neurons_InpDO_mnist_SI_1of2'
+    SI_3  = 'neurons_InpDO_mnist_SI_1of3'
+    SI_4  = 'neurons_InpDO_mnist_SI_1of4'
+    SI_6  = 'neurons_InpDO_mnist_SI_1of6'
+    #SI= 'neurons_InpDO_mnist_SI'
+
+    b1 = plot_best_result(ax1, savedir, SI_2, col=[1,0,0], label='SI_2')
+    b2 = plot_best_result(ax1, savedir, SI_3, col=[0,0,1], label='SI_3')
+    b3 = plot_best_result(ax1, savedir, SI_4, col=[0,1,0], label='SI_4')
+    b4 = plot_best_result(ax1, savedir, SI_5, col=[0,0,0], label='SI_5')
+    b5 = plot_best_result(ax1, savedir, SI_6, col=[1,0,1], label='SI_6')
+
+
+    accuracy['SI_2'] = b1
+    accuracy['SI_3'] = b2
+    accuracy['SI_4'] = b3
+    accuracy['SI_5'] = b4
+    accuracy['SI_6'] = b5
+
+
+    ax1.legend(ncol=3, fontsize=9)
+    ax1.grid(True)
+    ax1.set_xlim(0,500)
+    add_subplot_details(ax1, [0.9,1],[0,100],[])
+
+    plt.tight_layout()
+    plt.savefig('Figure3.pdf', format='pdf')
+    plt.show()
+
+    for k, v in accuracy.items():
+        print(k , ' = ', v)
+
+def plot_fig4():
+
+    savedir = './savedir/mnist/500perms/'
+    all_same_scale = True
+    f, ax1 = plt.subplots(1,1,figsize=(4,3))
+    accuracy = {}
+
+    # Figure 2A
+    # Plotting: SI, EWC, base
+    # No dropout on input layer
+    SI      = 'mnist_SI_500perms'
+    SI_XCG  = 'neurons_InpDO_mnist_SI_500perms'
+    #SI= 'neurons_InpDO_mnist_SI'
+
+    b1 = plot_best_result(ax1, savedir, SI, col=[0,0,1], label='SI')
+    b2 = plot_best_result(ax1, savedir, SI_XCG, col=[1,0,0], label='SI_XCG')
+
+    accuracy['SI'] = b1
+    accuracy['SI XdG'] = b2
+
+
+    ax1.legend(ncol=3, fontsize=9)
+    ax1.grid(True)
+    ax1.set_xlim(0,500)
+    add_subplot_details(ax1, [0.5,1],[0,500],[])
+
+    plt.tight_layout()
+    plt.savefig('Figure4.pdf', format='pdf')
+    plt.show()
+
+    for k, v in accuracy.items():
+        print(k , ' = ', v)
+
+def plot_fig2():
+
+    #savedir = './savedir/mnist/'
+    savedir = '/media/masse/MySSDataStor1/Context-Dependent Gating/MNIST/'
+    all_same_scale = True
     f, ((ax1,ax2),(ax3,ax4)) = plt.subplots(2,2,figsize=(8,6))
+    accuracy = {}
 
     # Figure 2A
     # Plotting: SI, EWC, base
@@ -33,8 +196,9 @@ def plot_fig2():
     b1 = plot_best_result(ax1, savedir, base, col=[1,0,0], label='Base')
     b2 = plot_best_result(ax1, savedir, EWC, col=[0,1,0], label='EWC')
 
-    print('A: ', b1, b2, b3)
-
+    accuracy['base'] = b1
+    accuracy['EWC'] = b2
+    accuracy['SI'] = b3
 
     ax1.legend(ncol=3, fontsize=9)
     ax1.grid(True)
@@ -50,10 +214,11 @@ def plot_fig2():
 
     b2 = plot_best_result(ax2, savedir, SI, col=[0,0,1], label='SI')
     b4 = plot_best_result(ax2, savedir, EWC, col=[0,1,0], label='EWC')
-    b1 = plot_best_result(ax2, savedir, SI_TDP, col=[0,0.7,0.7], label='SI+TD Par.')
-    b3 = plot_best_result(ax2, savedir, EWC_TDP, col=[0.7,0,0.7], label='EWC+TD Par.')
+    b1 = plot_best_result(ax2, savedir, SI_TDP, col=[0,0.7,0.7], label='SI+Partial')
+    b3 = plot_best_result(ax2, savedir, EWC_TDP, col=[0.7,0,0.7], label='EWC+Partial')
 
-    print('B: ', b4)
+    accuracy['SI_Partial'] = b1
+    accuracy['EWC_Partial'] = b3
 
     ax2.legend(ncol=2, fontsize=9)
     ax2.grid(True)
@@ -72,7 +237,8 @@ def plot_fig2():
     b2 = plot_best_result(ax3, savedir, SI_TDPS, col=[0.7,0.7,0], label='Split SI+TD Par.')
     b4 = plot_best_result(ax3, savedir, EWC_TDPS, col=[0.7,0.7,0.7],label='Split EWC+TD Par.')
 
-    print('C: ', b2, b4)
+    accuracy['SI_Split'] = b2
+    accuracy['EWC_Split'] = b4
 
     ax3.legend(ncol=2, fontsize=9)
     ax3.grid(True)
@@ -91,7 +257,8 @@ def plot_fig2():
     b1 = plot_best_result(ax4, savedir, SI_TD, col=[0,0,1], label='SI+TD Full')
     b3 = plot_best_result(ax4, savedir, EWC_TD, col=[0,1,0], label='EWC+TD Full')
 
-    print('D: ', b1, b3)
+    accuracy['SI_XdG'] = b1
+    accuracy['EWC_XdG'] = b3
 
     ax4.grid(True)
     ax4.set_xlim(0,100)
@@ -100,7 +267,11 @@ def plot_fig2():
 
 
     plt.tight_layout()
+    plt.savefig('Figure2.pdf', format='pdf')
     plt.show()
+
+    for k, v in accuracy.items():
+        print(k, ' = ', v)
 
 
 def mnist_table():
@@ -190,10 +361,11 @@ def fig2_inset():
     plt.show()
 
 
-def plot_fig3():
+def plot_fig5():
 
     savedir = './savedir/cifar/'
     f, ((ax1,ax2),(ax3,ax4)) = plt.subplots(2,2,figsize=(8,6))
+    accuracy = {}
 
     # Figure 3A
     # Plotting: SI, EWC, base
@@ -210,9 +382,19 @@ def plot_fig3():
     b2 = plot_best_result(ax1, savedir, EWC, col=[0,1,0], label='EWC')
     b3 = plot_best_result(ax1, savedir, SI, col=[0,0,1], label='SI')
 
-    b4 = plot_best_result(ax1, savedir, base_MH, col=[1,1,0], label='base')
-    b5 = plot_best_result(ax1, savedir, EWC_MH, col=[0.5,1,0.5], label='EWC')
-    b6 = plot_best_result(ax1, savedir, SI_MH, col=[0,1,1], label='SI')
+    b4 = plot_best_result(ax1, savedir, base_MH, col=[1,1,0], label='base MH')
+    b5 = plot_best_result(ax1, savedir, EWC_MH, col=[0.5,1,0.5], label='EWC MH')
+    b6 = plot_best_result(ax1, savedir, SI_MH, col=[0,1,1], label='SI MH')
+
+    accuracy['base'] = b1
+    accuracy['EWC'] = b2
+    accuracy['SI'] = b3
+    accuracy['base_MH'] = b4
+    accuracy['EWC_MH'] = b5
+    accuracy['SI_MH'] = b6
+
+
+    print('A ', b1,b2,b3,b4,b5,b6)
 
     ax1.legend(ncol=3, fontsize=9)
     ax1.grid(True)
@@ -228,6 +410,9 @@ def plot_fig3():
     b4 = plot_best_result(ax2, savedir, EWC, col=[0,1,0], label='EWC')
     b1 = plot_best_result(ax2, savedir, SI_TDP, col=[0,0.7,0.7], label='SI+TD Par.')
     b3 = plot_best_result(ax2, savedir, EWC_TDP, col=[0.7,0,0.7], label='EWC+TD Par.')
+
+    accuracy['SI Partial'] = b1
+    accuracy['EWC Partial'] = b3
 
     ax2.set_xlim(0,100)
     ax2.legend(ncol=2, fontsize=9)
@@ -245,6 +430,9 @@ def plot_fig3():
     b2 = plot_best_result(ax3, savedir, SI_TDPS, col=[0.7,0.7,0], label='Split SI+TD Par.')
     b4 = plot_best_result(ax3, savedir, EWC_TDPS, col=[0.7,0.7,0.7],label='Split EWC+TD Par.')
 
+    accuracy['SI Split'] = b2
+    accuracy['EWC Split'] = b4
+
     ax3.set_xlim(0,100)
     ax3.legend(ncol=2, fontsize=9)
     ax3.grid(True)
@@ -261,13 +449,20 @@ def plot_fig3():
     b1 = plot_best_result(ax4, savedir, SI_TD, col=[0,0,1], label='SI+TD Full')
     b3 = plot_best_result(ax4, savedir, EWC_TD, col=[0,1,0], label='EWC+TD Full')
 
+    accuracy['SI XdG'] = b1
+    accuracy['EWC XdG'] = b3
+
     ax4.set_xlim(0,100)
     ax4.legend(ncol=2, fontsize=9)
     ax4.grid(True)
     add_subplot_details(ax4, ylim = [0,1], xlim = [0,20])
 
     plt.tight_layout()
+    plt.savefig('Figure3.pdf', format='pdf')
     plt.show()
+
+    for k, v in accuracy.items():
+        print(k , ' = ', v)
 
 def plot_mnist_figure():
 
@@ -323,7 +518,7 @@ def add_subplot_details(ax, ylim = [0,1], xlim = [0,100],yminor = []):
     ax.set_ylabel('Mean task accuracy')
     ax.set_xlabel('Task number')
 
-def plot_best_result(ax, data_dir, prefix, col = [0,0,1], split = 1, description = [], label=None):
+def plot_best_result(ax, data_dir, prefix, col = [0,0,1], split = 1, description = [], label=None, linestyle = '-'):
 
 
     # Get filenames
@@ -331,56 +526,109 @@ def plot_best_result(ax, data_dir, prefix, col = [0,0,1], split = 1, description
     for full_fn in os.listdir(data_dir):
         if full_fn.startswith(prefix):
             x = pickle.load(open(data_dir + full_fn, 'rb'))
-            name_and_data.append((full_fn, x['accuracy_full'][-1], x['par']['omega_c']))
+            if 'RNN' in full_fn:
+                name_and_data.append((full_fn, x['accuracy'][-1,:], x['par']['omega_c']))
+            else:
+                name_and_data.append((full_fn, x['accuracy_full'][-1], x['par']['omega_c']))
 
     # Find number of c's and v's
     cids = []
     vids = []
     xids = []
     for (f, _, _) in name_and_data:
-        if 'xi' in f:
-            if f[-12] not in cids:
-                cids.append(f[-12])
-            if f[-9] not in vids:
-                vids.append(f[-9])
-        else:
-            if f[-8] not in cids:
-                cids.append(f[-8])
+        if 'xi' in f and 'RNN' in f:
             if f[-5] not in vids:
                 vids.append(f[-5])
+            ind = [i for i in range(len(f)) if f.startswith('_',i)]
+            ind_xi = [i for i in range(len(f)) if f.startswith('xi',i)]
+            cid = f[ind[-2]+1:ind[-1]]
+            xid = f[ind_xi[0]+2:ind[-4]]
+            if cid not in cids:
+                cids.append(cid)
+            if xid not in xids:
+                xids.append(xid)
 
-    accuracies = np.zeros((len(cids)))
-    count = np.zeros((len(cids)))
+        elif 'xi' in f:
+            if f[-12] not in cids:
+                cids.append(f[-12])
+            if f[-8] not in xids:
+                xids.append(f[-8])
+            if f[-5] not in vids:
+                vids.append(f[-5])
+        else:
+            if f[-9].isdigit():
+                c = f[-9:-7]
+            else:
+                c = f[-8]
+            if c not in cids:
+                cids.append(c)
+            if f[-5] not in vids:
+                vids.append(f[-5])
+            xids = [0]
+
+
+    accuracies = np.zeros((len(xids),len(cids)))
+    count = np.zeros((len(xids),len(cids)))
     cids = sorted(cids)
     vids = sorted(vids)
-
-    #print(cids)
-    #quit()
+    xids = sorted(xids)
 
     for i, c_id, in enumerate(cids):
         for v_id in vids:
-            #print(i, c_id, v_id)
-            text_c = 'omega'+str(c_id)
-            text_v = '_v'+str(v_id)
-            for full_fn in os.listdir(data_dir):
-                if full_fn.startswith(prefix) and text_c in full_fn and text_v in full_fn:
-                    #print('c_id', c_id)
-                    x = pickle.load(open(data_dir + full_fn, 'rb'))
-                    accuracies[i] += x['accuracy_full'][-1]
-                    count[i] += 1
+            for j, x_id in enumerate(xids):
+                #text_c = 'omega'+str(c_id)
+                text_c = 'omega'+str(c_id)
+                text_v = '_v'+str(v_id)
+                text_x = '_xi'+str(x_id)
+                for full_fn in os.listdir(data_dir):
+                    if full_fn.startswith(prefix) and 'xi' in full_fn and text_c in full_fn and text_v in full_fn and text_x in full_fn:
+                        #print('c_id', c_id)
+                        x = pickle.load(open(data_dir + full_fn, 'rb'))
+                        if 'RNN' in full_fn:
+                            x['accuracy_full'] = np.sum(x['accuracy'],axis=1)/np.arange(1,1+x['accuracy'].shape[0])
+                        accuracies[j,i] += x['accuracy_full'][-1]
+                        count[j,i] += 1
+                    elif full_fn.startswith(prefix) and not 'xi' in full_fn  and text_c in full_fn and text_v in full_fn:
+                        #print('c_id', c_id)
+                        x = pickle.load(open(data_dir + full_fn, 'rb'))
+                        accuracies[j,i] += x['accuracy_full'][-1]
+                        count[j,i] += 1
 
-    accuracies /= count
-    #print('accuracies ', accuracies)
+    accuracies /= (1e-16+count)
+    accuracies = np.reshape(accuracies,(1,-1))
     ind_best = np.argsort(accuracies)[-1]
+    best_c = int(ind_best[-1]%len(cids))
+    best_xi = ind_best[-1]//len(cids)
     task_accuracy = []
 
+
     for v_id in vids:
-        text_c = 'omega'+str(cids[ind_best])
+        #text_c = 'omega'+str(cids[best_c])
+        text_c = 'omega'+str(cids[best_c])
+        text_xi = 'xi'+str(xids[best_xi])
         text_v = '_v'+str(v_id)
+
+        print(prefix, text_c, text_xi, text_v)
+
         for full_fn in os.listdir(data_dir):
-            if full_fn.startswith(prefix) and text_c in full_fn and text_v in full_fn:
+            if full_fn.startswith(prefix)  and 'xi' in full_fn and text_c in full_fn and text_v in full_fn and text_x in full_fn:
                 x = pickle.load(open(data_dir + full_fn, 'rb'))
+                if 'RNN' in full_fn:
+                    #x['accuracy'] = x['accuracy'][:16,:16]
+                    #print(full_fn, x['accuracy'])
+                    #print(x['par']['task_list'])
+                    #print(full_fn , x['accuracy'].shape)
+                    #x['accuracy_full'] = x['accuracy'][-1]
+                    x['accuracy_full'] = np.sum(x['accuracy'],axis=1)/np.arange(1,1+x['accuracy'].shape[0])
                 task_accuracy.append(x['accuracy_full'])
+                print(prefix,' ', full_fn, ' ', x['par']['stabilization'], x['par']['omega_c'])
+            elif full_fn.startswith(prefix)  and not 'xi' in full_fn and text_c in full_fn and text_v in full_fn:
+                x = pickle.load(open(data_dir + full_fn, 'rb'))
+                if 'RNN' in full_fn:
+                    #x['accuracy_full'] = x['accuracy'][-1]
+                    x['accuracy_full'] = np.sum(x['accuracy'],axis=1)/np.arange(1,1+x['accuracy'].shape[0])
+                task_accuracy.append(x['accuracy_full'])
+                print(prefix,' ', full_fn, ' ', x['par']['stabilization'], x['par']['omega_c'])
 
     task_accuracy = np.mean(np.stack(task_accuracy),axis=0)
 
@@ -394,9 +642,9 @@ def plot_best_result(ax, data_dir, prefix, col = [0,0,1], split = 1, description
         print(description , ' ACC after 10 trials = ', task_accuracy[9],  ' after 30 trials = ', task_accuracy[29],  \
             ' after 100 trials = ', task_accuracy[99])
 
-    ax.plot(np.arange(1, np.shape(task_accuracy)[0]+1), task_accuracy, color = col, label=label)
+    ax.plot(np.arange(1, np.shape(task_accuracy)[0]+1), task_accuracy, color = col, linestyle = linestyle, label=label)
 
-    return task_accuracy[[9,99]]
+    return task_accuracy[[9,-1]]
 
 def retrieve_best_result(data_dir, fn):
     best_accuracy = -1
@@ -410,10 +658,3 @@ def retrieve_best_result(data_dir, fn):
                 val_c         = x['par']['omega_c']
 
     return val_c, task_accuracy
-
-
-mnist_table()
-cifar_table()
-#plot_fig3()
-#plot_fig2()
-#fig2_inset()
