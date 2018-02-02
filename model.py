@@ -159,7 +159,7 @@ class Model:
             for grad, var in grads_and_vars:
                 #print(var.op.name, grad)
                 fisher_ops.append(tf.assign_add(self.big_omega_var[var.op.name], \
-                    grad*grad/par['EWC_fisher_calc_batch']/par['EWC_fisher_num_batches']))
+                    grad*grad/par['batch_size']/par['EWC_fisher_num_batches']))
 
         self.update_big_omega = tf.group(*fisher_ops)
 

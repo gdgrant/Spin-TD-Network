@@ -179,7 +179,7 @@ def plot_fig4():
 def plot_fig2():
 
     #savedir = './savedir/mnist/'
-    savedir = '/media/masse/MySSDataStor1/Context-Dependent Gating/MNIST/'
+    savedir = '/media/masse/MySSDataStor1/Context-Dependent Gating/Final MNIST/'
     all_same_scale = True
     f, ((ax1,ax2),(ax3,ax4)) = plt.subplots(2,2,figsize=(8,6))
     accuracy = {}
@@ -192,9 +192,9 @@ def plot_fig2():
     SI      = 'mnist_SI'
     #SI= 'neurons_InpDO_mnist_SI'
 
-    b3 = plot_best_result(ax1, savedir, SI, col=[0,0,1], label='SI')
-    b1 = plot_best_result(ax1, savedir, base, col=[1,0,0], label='Base')
-    b2 = plot_best_result(ax1, savedir, EWC, col=[0,1,0], label='EWC')
+    b3 = plot_best_result(ax1, savedir + 'SI/', SI, col=[1,0,1], label='SI')
+    b1 = plot_best_result(ax1, savedir + 'Baseline/', base, col=[0,0,0], label='Base')
+    b2 = plot_best_result(ax1, savedir + 'EWC/', EWC, col=[0,1,0], label='EWC')
 
     accuracy['base'] = b1
     accuracy['EWC'] = b2
@@ -212,10 +212,10 @@ def plot_fig2():
     EWC_TDP = 'partial_InpDO_mnist_EWC'
 
 
-    b2 = plot_best_result(ax2, savedir, SI, col=[0,0,1], label='SI')
-    b4 = plot_best_result(ax2, savedir, EWC, col=[0,1,0], label='EWC')
-    b1 = plot_best_result(ax2, savedir, SI_TDP, col=[0,0.7,0.7], label='SI+Partial')
-    b3 = plot_best_result(ax2, savedir, EWC_TDP, col=[0.7,0,0.7], label='EWC+Partial')
+    b2 = plot_best_result(ax2, savedir + 'SI/', SI, col=[1,0,1], label='SI')
+    b4 = plot_best_result(ax2, savedir + 'EWC/', EWC, col=[0,1,0], label='EWC')
+    b1 = plot_best_result(ax2, savedir + 'SI Partial/', SI_TDP, col=[1,0,1], label='SI+Partial',linestyle='--')
+    b3 = plot_best_result(ax2, savedir + 'EWC Partial/', EWC_TDP, col=[0,1,0], label='EWC+Partial',linestyle='--')
 
     accuracy['SI_Partial'] = b1
     accuracy['EWC_Partial'] = b3
@@ -232,10 +232,10 @@ def plot_fig2():
     SI_TDPS  = 'split_InpDO_mnist_SI'
     EWC_TDPS = 'split_InpDO_mnist_EWC'
 
-    b1 = plot_best_result(ax3, savedir, SI_TDP, col=[0,0.7,0.7], label='SI+TD Par.')
-    b3 = plot_best_result(ax3, savedir, EWC_TDP, col=[0.7,0,0.7], label='EWC+TD Par.')
-    b2 = plot_best_result(ax3, savedir, SI_TDPS, col=[0.7,0.7,0], label='Split SI+TD Par.')
-    b4 = plot_best_result(ax3, savedir, EWC_TDPS, col=[0.7,0.7,0.7],label='Split EWC+TD Par.')
+    b1 = plot_best_result(ax3, savedir + 'SI Partial/', SI_TDP, col=[1,0,1], label='SI+Partial',linestyle='--')
+    b3 = plot_best_result(ax3, savedir + 'EWC Partial/', EWC_TDP, col=[0,1,0], label='EWC+Partial',linestyle='--')
+    b2 = plot_best_result(ax3, savedir + 'SI Split/', SI_TDPS, col=[1,0,1], label='Split SI+Partial')
+    b4 = plot_best_result(ax3, savedir + 'EWC Split/', EWC_TDPS, col=[0,1,0],label='Split EWC+Partial')
 
     accuracy['SI_Split'] = b2
     accuracy['EWC_Split'] = b4
@@ -252,10 +252,10 @@ def plot_fig2():
     SI_TD    = 'neurons_InpDO_mnist_SI'
     EWC_TD   = 'neurons_InpDO_mnist_EWC'
 
-    b2 = plot_best_result(ax4, savedir, SI_TDPS, col=[0.7,0.7,0], label='Split SI+TD Par.')
-    b4 = plot_best_result(ax4, savedir, EWC_TDPS, col=[0.7,0.7,0.7],label='Split EWC+TD Par.')
-    b1 = plot_best_result(ax4, savedir, SI_TD, col=[0,0,1], label='SI+TD Full')
-    b3 = plot_best_result(ax4, savedir, EWC_TD, col=[0,1,0], label='EWC+TD Full')
+    b2 = plot_best_result(ax4, savedir + 'SI Split/', SI_TDPS, col=[1,0,1], label='Split SI++Partial')
+    b4 = plot_best_result(ax4, savedir + 'EWC Split/', EWC_TDPS, col=[0,1,0],label='Split EWC++Partial')
+    b1 = plot_best_result(ax4, savedir + 'SI XdG/', SI_TD, col=[1,0,1], label='SI+XdG',linestyle='--')
+    b3 = plot_best_result(ax4, savedir + 'EWC XdG/', EWC_TD, col=[0,1,0], label='EWC+XdG',linestyle='--')
 
     accuracy['SI_XdG'] = b1
     accuracy['EWC_XdG'] = b3
@@ -363,7 +363,7 @@ def fig2_inset():
 
 def plot_fig5():
 
-    savedir = './savedir/cifar/'
+    savedir = '/media/masse/MySSDataStor1/Context-Dependent Gating/Final CIFAR/'
     f, ((ax1,ax2),(ax3,ax4)) = plt.subplots(2,2,figsize=(8,6))
     accuracy = {}
 
@@ -378,13 +378,13 @@ def plot_fig5():
     EWC_MH  = 'cifar_MH_EWC'
     SI_MH   = 'cifar_MH_SI'
 
-    b1 = plot_best_result(ax1, savedir, base, col=[1,0,0], label='base')
-    b2 = plot_best_result(ax1, savedir, EWC, col=[0,1,0], label='EWC')
-    b3 = plot_best_result(ax1, savedir, SI, col=[0,0,1], label='SI')
+    b1 = plot_best_result(ax1, savedir + 'Baseline/', base, col=[0,0,0], label='base')
+    b2 = plot_best_result(ax1, savedir + 'EWC/', EWC, col=[0,1,0], label='EWC')
+    b3 = plot_best_result(ax1, savedir + 'SI/', SI, col=[1,0,1], label='SI')
 
-    b4 = plot_best_result(ax1, savedir, base_MH, col=[1,1,0], label='base MH')
-    b5 = plot_best_result(ax1, savedir, EWC_MH, col=[0.5,1,0.5], label='EWC MH')
-    b6 = plot_best_result(ax1, savedir, SI_MH, col=[0,1,1], label='SI MH')
+    b4 = plot_best_result(ax1, savedir + 'Baseline/', base_MH, col=[0,0,0], label='base MH', linestyle='--')
+    b5 = plot_best_result(ax1, savedir + 'MH EWC/', EWC_MH, col=[0,1,0], label='EWC MH', linestyle='--')
+    b6 = plot_best_result(ax1, savedir + 'MH SI/', SI_MH, col=[1,0,1], label='SI MH', linestyle='--')
 
     accuracy['base'] = b1
     accuracy['EWC'] = b2
@@ -404,12 +404,12 @@ def plot_fig5():
     # Plotting: SI+TD Partial, SI, EWC+TD Partial, EWC
     # No dropout on input layer
     SI_TDP  = 'partial_cifar_SI'
-    EWC_TDP = 'partial_cifar_EWC'
+    EWC_TDP = 'partial_InpDO_cifar_EWC' # InpDO was a typo, not actually using drop out on iputs
 
-    b2 = plot_best_result(ax2, savedir, SI, col=[0,0,1], label='SI')
-    b4 = plot_best_result(ax2, savedir, EWC, col=[0,1,0], label='EWC')
-    b1 = plot_best_result(ax2, savedir, SI_TDP, col=[0,0.7,0.7], label='SI+TD Par.')
-    b3 = plot_best_result(ax2, savedir, EWC_TDP, col=[0.7,0,0.7], label='EWC+TD Par.')
+    b2 = plot_best_result(ax2, savedir + 'SI/', SI, col=[1,0,1], label='SI')
+    b4 = plot_best_result(ax2, savedir + 'EWC/', EWC, col=[0,1,0], label='EWC')
+    b1 = plot_best_result(ax2, savedir + 'SI Partial/', SI_TDP, col=[1,0,1], label='SI+Partial', linestyle='--')
+    b3 = plot_best_result(ax2, savedir + 'EWC Partial/', EWC_TDP, col=[0,1,0], label='EWC+Partal', linestyle='--')
 
     accuracy['SI Partial'] = b1
     accuracy['EWC Partial'] = b3
@@ -425,10 +425,10 @@ def plot_fig5():
     SI_TDPS  = 'split_cifar_SI'
     EWC_TDPS = 'split_cifar_EWC'
 
-    b1 = plot_best_result(ax3, savedir, SI_TDP, col=[0,0.7,0.7], label='SI+TD Par.')
-    b3 = plot_best_result(ax3, savedir, EWC_TDP, col=[0.7,0,0.7], label='EWC+TD Par.')
-    b2 = plot_best_result(ax3, savedir, SI_TDPS, col=[0.7,0.7,0], label='Split SI+TD Par.')
-    b4 = plot_best_result(ax3, savedir, EWC_TDPS, col=[0.7,0.7,0.7],label='Split EWC+TD Par.')
+    b1 = plot_best_result(ax3, savedir + 'SI Partial/', SI_TDP, col=[1,0,1], label='SI+TD Partial', linestyle='--')
+    b3 = plot_best_result(ax3, savedir + 'EWC Partial/', EWC_TDP, col=[0,1,0], label='EWC+TD Partial', linestyle='--')
+    b2 = plot_best_result(ax3, savedir + 'SI Split/', SI_TDPS, col=[1,0,1], label='Split SI+Partial')
+    b4 = plot_best_result(ax3, savedir + 'EWC Split/', EWC_TDPS, col=[0,1,0],label='Split EWC+Partial')
 
     accuracy['SI Split'] = b2
     accuracy['EWC Split'] = b4
@@ -444,10 +444,10 @@ def plot_fig5():
     SI_TD    = 'neurons_cifar_SI'
     EWC_TD   = 'neurons_cifar_EWC'
 
-    b2 = plot_best_result(ax4, savedir, SI_TDPS, col=[0.7,0.7,0], label='Split SI+TD Par.')
-    b4 = plot_best_result(ax4, savedir, EWC_TDPS, col=[0.7,0.7,0.7],label='Split EWC+TD Par.')
-    b1 = plot_best_result(ax4, savedir, SI_TD, col=[0,0,1], label='SI+TD Full')
-    b3 = plot_best_result(ax4, savedir, EWC_TD, col=[0,1,0], label='EWC+TD Full')
+    b2 = plot_best_result(ax4, savedir + 'SI Split/', SI_TDPS, col=[1,0,1], label='Split SI+Partial')
+    b4 = plot_best_result(ax4, savedir + 'EWC Split/', EWC_TDPS, col=[0,1,0],label='Split EWC+Partial')
+    b1 = plot_best_result(ax4, savedir + 'EWC XdG/', EWC_TD, col=[0,1,0],label='EWC+XdG', linestyle='--')
+    b3 = plot_best_result(ax4, savedir + 'SI XdG/', SI_TD, col=[1,0,1],label='SI+XdG', linestyle='--')
 
     accuracy['SI XdG'] = b1
     accuracy['EWC XdG'] = b3
@@ -572,6 +572,8 @@ def plot_best_result(ax, data_dir, prefix, col = [0,0,1], split = 1, description
     cids = sorted(cids)
     vids = sorted(vids)
     xids = sorted(xids)
+
+    print(prefix, cids, vids, xids)
 
     for i, c_id, in enumerate(cids):
         for v_id in vids:

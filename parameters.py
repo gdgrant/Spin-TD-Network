@@ -52,7 +52,6 @@ par = {
     # Only one can be True
     'clamp'                 : None, # can be either 'dendrites', 'neurons', 'partial' or None
 
-    'EWC_fisher_calc_batch' : 8, # batch size when calculating EWC
     'EWC_fisher_num_batches': 32, # number of batches size when calculating EWC
 
 }
